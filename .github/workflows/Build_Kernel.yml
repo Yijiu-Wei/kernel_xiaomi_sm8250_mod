@@ -235,19 +235,15 @@ jobs:
           # 但 v0.9.5 的 ksud.c 在 CONFIG_KPROBES=y 时不定义它们，导致链接报 undefined symbol
           KSUD_FILE="$KERNEL_SOURCE/KernelSU/kernel/ksud.c"
           if [ -f "$KSUD_FILE" ]; then
-            if ! grep -q "FIXED: force define bool hooks" "$KSUD_FILE"; then
-              cat >> "$KSUD_FILE" << 'EOF'
-
-// FIXED: force define bool hooks for CONFIG_KPROBES=y
-// Kernel source (fs/exec.c, fs/read_write.c) references these variables
-#ifndef CONFIG_KPROBES
-/* already defined above */
-#else
-bool ksu_vfs_read_hook __read_mostly = true;
-bool ksu_execveat_hook __read_mostly = true;
-bool ksu_input_hook __read_mostly = true;
-#endif
-EOF
+            if ! grep -q "FIXED_HOOK_VARS" "$KSUD_FILE"; then
+              printf '\n// FIXED_HOOK_VARS: force define bool hooks for CONFIG_KPROBES=y\n' >> "$KSUD_FILE"
+              printf '#ifndef CONFIG_KPROBES\n' >> "$KSUD_FILE"
+              printf '/* already defined above */\n' >> "$KSUD_FILE"
+              printf '#else\n' >> "$KSUD_FILE"
+              printf 'bool ksu_vfs_read_hook __read_mostly = true;\n' >> "$KSUD_FILE"
+              printf 'bool ksu_execveat_hook __read_mostly = true;\n' >> "$KSUD_FILE"
+              printf 'bool ksu_input_hook __read_mostly = true;\n' >> "$KSUD_FILE"
+              printf '#endif\n' >> "$KSUD_FILE"
               echo "✅ Patched bool hook variables in ksud.c"
             fi
           fi
