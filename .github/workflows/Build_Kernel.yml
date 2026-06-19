@@ -210,11 +210,11 @@ jobs:
           echo "⚙️ Configure KernelSU Variants: $KSU_VARIANT (配置 KernelSU 变体: $KSU_VARIANT)"
 
           if [ "$KSU_VARIANT" == "SukiSU-Ultra" ]; then
-            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v3.2.4
+            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
           elif [ "$KSU_VARIANT" == "RKSU" ]; then
             curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/susfs-rksu-master/kernel/setup.sh" | bash
           elif [ "$KSU_VARIANT" == "KernelSU" ]; then
-            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v3.2.4
+            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
           else
             echo "KernelSU Disabled (KernelSU 已禁用)"
           fi
@@ -230,13 +230,27 @@ jobs:
             fi
           done
 
-          # 2. linux/pgtable.h 在 5.9+ 才引入，4.19 使用 asm/pgtable.h
-          for f in "$KERNEL_SOURCE/KernelSU/kernel/feature/sucompat.c"; do
-            if [ -f "$f" ]; then
-              sed -i 's|<linux/pgtable.h>|<asm/pgtable.h>|' "$f"
-              echo "✅ Patched pgtable.h in sucompat.c"
+          # 2. 修复 v0.9.5 在 CONFIG_KPROBES=y 时缺少的布尔开关变量
+          # 内核源码 (fs/exec.c, fs/read_write.c) 引用了 ksu_execveat_hook 等变量，
+          # 但 v0.9.5 的 ksud.c 在 CONFIG_KPROBES=y 时不定义它们，导致链接报 undefined symbol
+          KSUD_FILE="$KERNEL_SOURCE/KernelSU/kernel/ksud.c"
+          if [ -f "$KSUD_FILE" ]; then
+            if ! grep -q "FIXED: force define bool hooks" "$KSUD_FILE"; then
+              cat >> "$KSUD_FILE" << 'EOF'
+
+// FIXED: force define bool hooks for CONFIG_KPROBES=y
+// Kernel source (fs/exec.c, fs/read_write.c) references these variables
+#ifndef CONFIG_KPROBES
+/* already defined above */
+#else
+bool ksu_vfs_read_hook __read_mostly = true;
+bool ksu_execveat_hook __read_mostly = true;
+bool ksu_input_hook __read_mostly = true;
+#endif
+EOF
+              echo "✅ Patched bool hook variables in ksud.c"
             fi
-          done
+          fi
 
           echo "✅ KernelSU configuration complete (KernelSU 配置完成)"
 
