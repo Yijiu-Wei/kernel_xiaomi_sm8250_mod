@@ -219,6 +219,15 @@ jobs:
             echo "KernelSU Disabled (KernelSU 已禁用)"
           fi
 
+          # 修复 MODULE_IMPORT_NS 在 4.19 内核上的兼容性问题
+          echo "🔧 Patching MODULE_IMPORT_NS for kernel 4.19 compatibility..."
+          for f in "$KERNEL_SOURCE/KernelSU/kernel/core/init.c"; do
+            if [ -f "$f" ]; then
+              sed -i '/MODULE_IMPORT_NS/d' "$f"
+              echo "✅ Patched $f"
+            fi
+          done
+
           echo "✅ KernelSU configuration complete (KernelSU 配置完成)"
 
       - name: 🔨 Build the kernel (构建内核)
