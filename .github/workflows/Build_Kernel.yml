@@ -219,12 +219,22 @@ jobs:
             echo "KernelSU Disabled (KernelSU 已禁用)"
           fi
 
-          # 修复 MODULE_IMPORT_NS 在 4.19 内核上的兼容性问题
-          echo "🔧 Patching MODULE_IMPORT_NS for kernel 4.19 compatibility..."
+          # 修复 KernelSU 与 4.19 内核的兼容性问题
+          echo "🔧 Patching KernelSU for kernel 4.19 compatibility..."
+
+          # 1. MODULE_IMPORT_NS 在 5.4+ 才引入，4.19 不支持
           for f in "$KERNEL_SOURCE/KernelSU/kernel/core/init.c"; do
             if [ -f "$f" ]; then
               sed -i '/MODULE_IMPORT_NS/d' "$f"
-              echo "✅ Patched $f"
+              echo "✅ Patched MODULE_IMPORT_NS in init.c"
+            fi
+          done
+
+          # 2. linux/pgtable.h 在 5.9+ 才引入，4.19 使用 asm/pgtable.h
+          for f in "$KERNEL_SOURCE/KernelSU/kernel/feature/sucompat.c"; do
+            if [ -f "$f" ]; then
+              sed -i 's|<linux/pgtable.h>|<asm/pgtable.h>|' "$f"
+              echo "✅ Patched pgtable.h in sucompat.c"
             fi
           done
 
