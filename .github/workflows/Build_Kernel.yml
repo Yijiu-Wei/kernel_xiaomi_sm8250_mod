@@ -219,26 +219,8 @@ jobs:
             echo "KernelSU Disabled (KernelSU 已禁用)"
           fi
 
-          # 路线A: 保持 CONFIG_KPROBES=y + CONFIG_KSU=y
-          # v0.9.5 ksud.c 在 CONFIG_KPROBES=y 时不定义 ksu_execveat_hook 等变量
-          # 但内核源码 fs/exec.c 等通过 CONFIG_KSU 引用了这些变量
-          # 强制在 ksud.c 末尾追加定义，默认 false（由 kprobe 适时激活）
-          KSUD_FILE="$KERNEL_SOURCE/KernelSU/kernel/ksud.c"
-          if [ -f "$KSUD_FILE" ]; then
-            if ! grep -q "KSU_ROUTE_A" "$KSUD_FILE"; then
-              printf '\n// KSU_ROUTE_A: force define bool hooks for CONFIG_KPROBES+y\n' >> "$KSUD_FILE"
-              printf '// Default false: manual hooks stay inactive, kprobe handles them\n' >> "$KSUD_FILE"
-              printf '#ifndef CONFIG_KPROBES\n' >> "$KSUD_FILE"
-              printf '/* already defined above */\n' >> "$KSUD_FILE"
-              printf '#else\n' >> "$KSUD_FILE"
-              printf 'bool ksu_vfs_read_hook __read_mostly = false;\n' >> "$KSUD_FILE"
-              printf 'bool ksu_execveat_hook __read_mostly = false;\n' >> "$KSUD_FILE"
-              printf 'bool ksu_input_hook __read_mostly = false;\n' >> "$KSUD_FILE"
-              printf '#endif\n' >> "$KSUD_FILE"
-              echo "✅ Route A: added bool hook vars (default false) to ksud.c"
-            fi
-          fi
-
+          # LKM 路线: setup.sh 已创建符号链接和 Kconfig，
+          # 不需要额外补丁。编译时 CONFIG_KSU=m 即可。
           echo "✅ KernelSU configuration complete (KernelSU 配置完成)"
 
       - name: 🔨 Build the kernel (构建内核)
@@ -410,7 +392,7 @@ jobs:
           if [ "$KSU" == "RKSU" ]; then
               echo "🔧 Applying RKSU Configuration... (应用 RKSU 配置)"
               scripts/config --file out/.config \
-                  -e KSU \
+                  --set-val KSU m \
                   -e KSU_MANUAL_HOOK \
                   -e KSU_SUSFS \
                   -e KSU_SUSFS_HAS_MAGIC_MOUNT \
@@ -431,7 +413,7 @@ jobs:
           elif [ "$KSU" == "SukiSU-Ultra" ] || [ "$KSU" == "KernelSU" ]; then
               echo "🔧 Applying KernelSU Configuration... (应用 KernelSU 配置)"
               scripts/config --file out/.config \
-                  -e KSU
+                  --set-val KSU m
           fi
 
           # 判断KPM是否启用并开启相关配置
