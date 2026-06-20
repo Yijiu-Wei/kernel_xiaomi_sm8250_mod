@@ -219,12 +219,25 @@ jobs:
             echo "KernelSU Disabled (KernelSU 已禁用)"
           fi
 
-          # 修复 KernelSU 与 4.19 内核的兼容性问题
-          echo "🔧 Patching KernelSU for kernel 4.19 compatibility..."
-
-          # v0.9.5 on non-GKI: KPROBES is disabled, so ksud.c naturally defines
-          # ksu_execveat_hook/ksu_vfs_read_hook/ksu_input_hook in its #else branch.
-          # Kernel source (fs/exec.c etc.) references these via CONFIG_KSU, no patch needed.
+          # 路线A: 保持 CONFIG_KPROBES=y + CONFIG_KSU=y
+          # v0.9.5 ksud.c 在 CONFIG_KPROBES=y 时不定义 ksu_execveat_hook 等变量
+          # 但内核源码 fs/exec.c 等通过 CONFIG_KSU 引用了这些变量
+          # 强制在 ksud.c 末尾追加定义，默认 false（由 kprobe 适时激活）
+          KSUD_FILE="$KERNEL_SOURCE/KernelSU/kernel/ksud.c"
+          if [ -f "$KSUD_FILE" ]; then
+            if ! grep -q "KSU_ROUTE_A" "$KSUD_FILE"; then
+              printf '\n// KSU_ROUTE_A: force define bool hooks for CONFIG_KPROBES+y\n' >> "$KSUD_FILE"
+              printf '// Default false: manual hooks stay inactive, kprobe handles them\n' >> "$KSUD_FILE"
+              printf '#ifndef CONFIG_KPROBES\n' >> "$KSUD_FILE"
+              printf '/* already defined above */\n' >> "$KSUD_FILE"
+              printf '#else\n' >> "$KSUD_FILE"
+              printf 'bool ksu_vfs_read_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+              printf 'bool ksu_execveat_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+              printf 'bool ksu_input_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+              printf '#endif\n' >> "$KSUD_FILE"
+              echo "✅ Route A: added bool hook vars (default false) to ksud.c"
+            fi
+          fi
 
           echo "✅ KernelSU configuration complete (KernelSU 配置完成)"
 
@@ -261,6 +274,9 @@ jobs:
           scripts/config --file out/.config \
             -e KALLSYMS \
             -e KALLSYMS_ALL \
+            -e KPROBES \
+            -e HAVE_KPROBES \
+            -e KPROBE_EVENTS \
             -e TMPFS_XATTR=y \
             -e TMPFS_POSIX_ACL \
             -e IP_NF_TARGET_TTL \
