@@ -222,31 +222,9 @@ jobs:
           # 修复 KernelSU 与 4.19 内核的兼容性问题
           echo "🔧 Patching KernelSU for kernel 4.19 compatibility..."
 
-          # 1. MODULE_IMPORT_NS 在 5.4+ 才引入，4.19 不支持
-          for f in "$KERNEL_SOURCE/KernelSU/kernel/core/init.c"; do
-            if [ -f "$f" ]; then
-              sed -i '/MODULE_IMPORT_NS/d' "$f"
-              echo "✅ Patched MODULE_IMPORT_NS in init.c"
-            fi
-          done
-
-          # 2. 修复 v0.9.5 在 CONFIG_KPROBES=y 时缺少的布尔开关变量
-          # 内核源码 (fs/exec.c, fs/read_write.c) 引用了 ksu_execveat_hook 等变量，
-          # 但 v0.9.5 的 ksud.c 在 CONFIG_KPROBES=y 时不定义它们，导致链接报 undefined symbol
-          KSUD_FILE="$KERNEL_SOURCE/KernelSU/kernel/ksud.c"
-          if [ -f "$KSUD_FILE" ]; then
-            if ! grep -q "FIXED_HOOK_VARS" "$KSUD_FILE"; then
-              printf '\n// FIXED_HOOK_VARS: force define bool hooks for CONFIG_KPROBES=y\n' >> "$KSUD_FILE"
-              printf '#ifndef CONFIG_KPROBES\n' >> "$KSUD_FILE"
-              printf '/* already defined above */\n' >> "$KSUD_FILE"
-              printf '#else\n' >> "$KSUD_FILE"
-              printf 'bool ksu_vfs_read_hook __read_mostly = true;\n' >> "$KSUD_FILE"
-              printf 'bool ksu_execveat_hook __read_mostly = true;\n' >> "$KSUD_FILE"
-              printf 'bool ksu_input_hook __read_mostly = true;\n' >> "$KSUD_FILE"
-              printf '#endif\n' >> "$KSUD_FILE"
-              echo "✅ Patched bool hook variables in ksud.c"
-            fi
-          fi
+          # v0.9.5 on non-GKI: KPROBES is disabled, so ksud.c naturally defines
+          # ksu_execveat_hook/ksu_vfs_read_hook/ksu_input_hook in its #else branch.
+          # Kernel source (fs/exec.c etc.) references these via CONFIG_KSU, no patch needed.
 
           echo "✅ KernelSU configuration complete (KernelSU 配置完成)"
 
@@ -283,9 +261,6 @@ jobs:
           scripts/config --file out/.config \
             -e KALLSYMS \
             -e KALLSYMS_ALL \
-            -e KPROBES \
-            -e HAVE_KPROBES \
-            -e KPROBE_EVENTS \
             -e TMPFS_XATTR=y \
             -e TMPFS_POSIX_ACL \
             -e IP_NF_TARGET_TTL \
