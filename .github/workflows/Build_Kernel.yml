@@ -219,8 +219,16 @@ jobs:
             echo "KernelSU Disabled (KernelSU 已禁用)"
           fi
 
-          # LKM 路线: setup.sh 已创建符号链接和 Kconfig，
-          # 不需要额外补丁。编译时 CONFIG_KSU=m 即可。
+          # LKM 路线 A1: 去掉 4 个钩子文件的 #ifdef CONFIG_KSU 守卫
+          # 让 fs/exec.c 等始终引用 KSU 符号，KSU 以模块(.ko)加载提供实现
+          cd "$KERNEL_SOURCE"
+          for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c; do
+            if [ -f "$f" ]; then
+              sed -i '/^#ifdef CONFIG_KSU$/,/^#endif/{/^#ifdef CONFIG_KSU$/d;/^#endif/d}' "$f" \
+              && echo "✅ Un-guarded $f"
+            fi
+          done
+
           echo "✅ KernelSU configuration complete (KernelSU 配置完成)"
 
       - name: 🔨 Build the kernel (构建内核)
@@ -258,6 +266,7 @@ jobs:
             -e KALLSYMS_ALL \
             -e KPROBES \
             -e HAVE_KPROBES \
+            -e KPROBE_EVENTS \
             -e KPROBE_EVENTS \
             -e TMPFS_XATTR=y \
             -e TMPFS_POSIX_ACL \
