@@ -219,15 +219,23 @@ jobs:
             echo "KernelSU Disabled (KernelSU 已禁用)"
           fi
 
-          # LKM 路线 A1: 去掉 4 个钩子文件的 #ifdef CONFIG_KSU 守卫
-          # 让 fs/exec.c 等始终引用 KSU 符号，KSU 以模块(.ko)加载提供实现
-          cd "$KERNEL_SOURCE"
-          for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c; do
-            if [ -f "$f" ]; then
-              sed -i '/^#ifdef CONFIG_KSU$/,/^#endif/{/^#ifdef CONFIG_KSU$/d;/^#endif/d}' "$f" \
-              && echo "✅ Un-guarded $f"
+          # Route A2: CONFIG_KSU=y (built-in) + KPROBES=y + bool vars default false
+          # 内核源码 fs/exec.c 等通过 #ifdef CONFIG_KSU 引用钩子变量和函数
+          # v0.9.5 在 CONFIG_KPROBES=y 时不定义这些 bool 变量，需要强制补充
+          KSUD_FILE="$KERNEL_SOURCE/KernelSU/kernel/ksud.c"
+          if [ -f "$KSUD_FILE" ]; then
+            if ! grep -q "KSU_A2_VARS" "$KSUD_FILE"; then
+              printf '\n// KSU_A2_VARS: bool hooks default false for CONFIG_KPROBES=y\n' >> "$KSUD_FILE"
+              printf '#ifndef CONFIG_KPROBES\n' >> "$KSUD_FILE"
+              printf '/* already defined above */\n' >> "$KSUD_FILE"
+              printf '#else\n' >> "$KSUD_FILE"
+              printf 'bool ksu_vfs_read_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+              printf 'bool ksu_execveat_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+              printf 'bool ksu_input_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+              printf '#endif\n' >> "$KSUD_FILE"
+              echo "✅ Added KSU_A2_VARS (default false) to ksud.c"
             fi
-          done
+          fi
 
           echo "✅ KernelSU configuration complete (KernelSU 配置完成)"
 
@@ -401,7 +409,7 @@ jobs:
           if [ "$KSU" == "RKSU" ]; then
               echo "🔧 Applying RKSU Configuration... (应用 RKSU 配置)"
               scripts/config --file out/.config \
-                  --set-val KSU m \
+                  -e KSU \
                   -e KSU_MANUAL_HOOK \
                   -e KSU_SUSFS \
                   -e KSU_SUSFS_HAS_MAGIC_MOUNT \
@@ -422,7 +430,7 @@ jobs:
           elif [ "$KSU" == "SukiSU-Ultra" ] || [ "$KSU" == "KernelSU" ]; then
               echo "🔧 Applying KernelSU Configuration... (应用 KernelSU 配置)"
               scripts/config --file out/.config \
-                  --set-val KSU m
+                  -e KSU
           fi
 
           # 判断KPM是否启用并开启相关配置
