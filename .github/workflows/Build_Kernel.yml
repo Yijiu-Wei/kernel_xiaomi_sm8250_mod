@@ -241,10 +241,18 @@ jobs:
 
       - name: 🔨 Build the kernel (构建内核)
         run: |
+          set -x  # 启用调试输出
+          echo "=== DEBUG: Build step started ==="
+          pwd
+          echo "KERNEL_SOURCE=$KERNEL_SOURCE"
+          ls -la "$KERNEL_SOURCE" || { echo "❌ KERNEL_SOURCE not found"; exit 1; }
+
           cd "$KERNEL_SOURCE"
+          echo "=== PWD: $(pwd) ==="
 
           # 设置环境变量
           export PATH="$TOOLCHAIN_DIR/clang/bin:$PATH"
+          echo "=== Clang: $(which clang 2>/dev/null || echo 'NOT FOUND') ==="
 
           # 定义构建参数
           MAKE_ARGS="ARCH=arm64 SUBARCH=arm64 LLVM=1 LLVM_IAS=1 \
@@ -525,15 +533,23 @@ jobs:
 
           # 开始构建
           echo "🚀 Start building the kernel... (开始构建内核)"
-          make $MAKE_ARGS -j$(nproc --all) 2>&1 | tee build.log
+          make $MAKE_ARGS -j$(nproc --all) 2>&1 | tee build.log; MAKE_EXIT=${PIPESTATUS[0]}
+          echo "=== make exit code: $MAKE_EXIT ==="
 
           # 验证构建结果
-          if [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/Image" ]; then
+          if [ $MAKE_EXIT -eq 0 ] && [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/Image" ]; then
               echo "✅ Kernel Build Successful (内核构建成功)"
           else
               echo "❌ Kernel build failure (内核构建失败)"
-              echo "error log (错误日志):"
-              tail -n 100 build.log
+              echo "=== exit code: $MAKE_EXIT ==="
+              echo "=== last 200 lines of build.log ==="
+              if [ -f build.log ]; then
+                tail -n 200 build.log
+              else
+                echo "build.log not found - make may not have started"
+                ls -la "$KERNEL_SOURCE"
+                ls -la "$KERNEL_SOURCE/out" 2>/dev/null || echo "out/ not found"
+              fi
               exit 1
           fi
 
