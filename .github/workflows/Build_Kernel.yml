@@ -153,7 +153,7 @@ jobs:
             ccache-${{ github.event.inputs.compiled_system }}-
             ccache-
 
-      - name: 📥 Cloning kernel source code （克隆内核源码）
+      - name: 📥 Cloning kernel source code (克隆内核源码)
         run: |
           echo "正在克隆内核源码..."
           git clone https://github.com/yspbwx2010/kernel_xiaomi_sm8250_mod.git --depth=1 $KERNEL_SOURCE
@@ -606,8 +606,12 @@ jobs:
           # 删除不需要的文件
           rm -rf .git .github README.md
 
-          # 复制内核镜像
-          cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" ./
+          # 复制内核镜像(放入 kernels/ 目录，AK3 的 anykernel.sh 会把它移到根目录)
+          mkdir -p kernels
+          cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
+          # 如果存在 dtb 也复制(某些设备需要)
+          [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtb.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtb.img" kernels/dtb
+          [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" kernels/
 
           # 打包
           echo "📦 Flashing package being created (正在创建刷机包): $ZIP_NAME"
@@ -670,8 +674,8 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: /home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/release/*.zip
-        name: Kernel_（${{ env.TARGET_DEVICES }}）_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}_${{ github.event.inputs.build_type }}
-        tag_name: Kernel_（${{ env.TARGET_DEVICES }}）_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}
+        name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}_${{ github.event.inputs.build_type }}
+        tag_name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}
         body: |
           ## 📱kernel build information | 内核构建信息
 
