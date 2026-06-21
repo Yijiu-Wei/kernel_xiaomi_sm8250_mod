@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       target_devices:
-        description: 'target device (目标设备)'
+        description: 'target device (target device)'
         required: true
         type: choice
         options:
@@ -27,7 +27,7 @@ on:
           - 'pipa'
           - 'all'
       compiled_system:
-        description: 'Applicable systems (适用系统)'
+        description: 'Applicable systems (applicable system)'
         required: true
         type: choice
         default: 'MIUI'
@@ -35,7 +35,7 @@ on:
           - 'MIUI'
           - 'AOSP'
       kernelsu_variant:
-        description: 'KernelSU variants (KernelSU 版本)'
+        description: 'KernelSU variants (KernelSU variant)'
         required: true
         type: choice
         default: 'KernelSU'
@@ -44,7 +44,7 @@ on:
           - 'RKSU'
           - 'None'
       kpm_enable:
-        description: 'Is KPM support enabled? (是否启用 KPM 支持?)'
+        description: 'Is KPM support enabled? (enable KPM support?)'
         required: true
         type: choice
         default: 'enable'
@@ -52,7 +52,7 @@ on:
           - 'enable'
           - 'disable'
       droidspaces_enable:
-        description: 'Droidspaces / LXC / Docker support (启用容器支持)'
+        description: 'Droidspaces / LXC / Docker support (enable container support)'
         required: true
         type: choice
         default: 'disable'
@@ -60,12 +60,12 @@ on:
           - 'enable'
           - 'disable'
       kernel_version:
-        description: 'Customizing the kernel version number (自定义内核版本号)'
+        description: 'Customizing the kernel version number (custom kernel version)'
         required: false
         type: string
         default: ''
       build_type:
-        description: 'Kernel Build Type (内核构建类型)'
+        description: 'Kernel Build Type (kernel build type)'
         required: true
         type: choice
         default: 'Release'
@@ -493,7 +493,7 @@ print('Fixed stop_input_hook')
           # Droidspaces / LXC / Docker 容器支持
           # ──────────────────────────────────────────────────
           if [ "$DROIDSPACES" == "enable" ]; then
-              echo "🔧 Enabling Droidspaces / LXC / Docker support... (启用容器支持)"
+              echo "🔧 Enabling Droidspaces / LXC / Docker support... (enable container support)"
               scripts/config --file out/.config \
                   -e NAMESPACES \
                   -e UTS_NS \
