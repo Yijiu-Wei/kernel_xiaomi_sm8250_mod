@@ -383,9 +383,9 @@ jobs:
           fi
           cd AnyKernel3
           rm -rf .git .github README.md
-          sed -i 's/do.devicecheck=0/do.devicecheck=1/' anykernel.sh
-          sed -i 's/do.modules=0/do.modules=1/' anykernel.sh
-          sed -i '/device.name5=/a\device.name6=munch\ndevice.name7=munchin\ndevice.name8=RedmiK40S\ndevice.name9=POCOF4' anykernel.sh
+          # 用 Python 脚本生成 anykernel.sh (最可靠的方式)
+          python3 "${{ github.workspace }}/.github/workflows/write_anykernel.py" anykernel.sh
+          echo "anykernel.sh rewritten with full fixes"
           mkdir -p kernels
           cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
           [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtb.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtb.img" kernels/dtb
