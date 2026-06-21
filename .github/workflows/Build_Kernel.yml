@@ -676,21 +676,20 @@ jobs:
     - name: 📝 Preparing files for release (准备发布文件)
       run: |
         mkdir -p release
-        cd /home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/out
+        RELEASE_DIR="/home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/release"
+        OUT_DIR="/home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/out"
         device_list=()
-        for dir in */; do
-          device_name=$(echo "$dir" | sed 's/Kernel-//' | sed 's/\/$//')
-          echo "Found device: $device_name"
-          device_list+=("$device_name")
-          cd "$dir"
-        for zip_file in *; do
-          if [[ -f "$zip_file" && "$zip_file" == *.zip ]]; then
-          mv "$zip_file" /home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/release
-        fi
-          done
-          cd ..
-        done
-        TARGET_DEVICES=$(echo "${device_list[*]}" | tr ' ' '-')
+        # download-artifact@v8 may or may not create subdirectories
+        # Find all zip files recursively and collect device names
+        while IFS= read -r zip_file; do
+          mv "$zip_file" "$RELEASE_DIR/"
+          dir_name=$(basename "$(dirname "$zip_file")")
+          device_name=$(echo "$dir_name" | sed 's/Kernel-//')
+          [ -n "$device_name" ] && device_list+=("$device_name")
+        done < <(find "$OUT_DIR" -name "*.zip" -type f)
+        # Deduplicate device names
+        TARGET_DEVICES=$(printf "%s\n" "${device_list[@]}" | sort -u | tr '\n' '-')
+        TARGET_DEVICES=${TARGET_DEVICES%-}
         echo "TARGET_DEVICES=$TARGET_DEVICES" >> $GITHUB_ENV
 
     - name: 📅 Setting date variables (设置日期变量)
