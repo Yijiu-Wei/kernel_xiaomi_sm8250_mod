@@ -1,77 +1,451 @@
 name: Build Kernel
+
 permissions:
   contents: write
   actions: write
-'on':
+
+on:
   workflow_dispatch:
     inputs:
       target_devices:
-        description: target device (munch/alioth/etc)
+        description: 'target device'
         required: true
         type: choice
         options:
-        - umi
-        - cmi
-        - cas
-        - thyme
-        - munch
-        - dagu
-        - elish
-        - enuma
-        - alioth
-        - apollo
-        - lmi
-        - psyche
-        - pipa
-        - all
+          - 'umi'
+          - 'cmi'
+          - 'cas'
+          - 'thyme'
+          - 'munch'
+          - 'dagu'
+          - 'elish'
+          - 'enuma'
+          - 'alioth'
+          - 'apollo'
+          - 'lmi'
+          - 'psyche'
+          - 'pipa'
+          - 'all'
       compiled_system:
-        description: system type (MIUI/AOSP)
+        description: 'system type'
         required: true
         type: choice
-        default: MIUI
+        default: 'MIUI'
         options:
-        - MIUI
-        - AOSP
+          - 'MIUI'
+          - 'AOSP'
       kernelsu_variant:
-        description: KernelSU variant
+        description: 'KernelSU variant'
         required: true
         type: choice
-        default: KernelSU
+        default: 'KernelSU'
         options:
-        - KernelSU
-        - RKSU
-        - None
+          - 'KernelSU'
+          - 'RKSU'
+          - 'None'
       kpm_enable:
-        description: KPM support
+        description: 'KPM support'
         required: true
         type: choice
-        default: disable
+        default: 'disable'
         options:
-        - enable
-        - disable
+          - 'enable'
+          - 'disable'
       droidspaces_enable:
-        description: Droidspaces / LXC / Docker support
+        description: 'container support'
         required: true
         type: choice
-        default: disable
+        default: 'disable'
         options:
-        - enable
-        - disable
+          - 'enable'
+          - 'disable'
       kernel_version:
-        description: custom kernel version
+        description: 'custom kernel version'
         required: false
         type: string
         default: ''
       build_type:
-        description: Release or Dev
+        description: 'build type'
         required: true
         type: choice
-        default: Release
+        default: 'Release'
         options:
-        - Release
-        - Dev
+          - 'Release'
+          - 'Dev'
+
 jobs:
-  placeholder:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - run: echo "Workflow rebuilt from scratch - OK"
+      - id: set-matrix
+        run: |
+          DEVICES="${{ github.event.inputs.target_devices }}"
+          if [ "$DEVICES" == "all" ]; then
+            DEVICES="umi,cmi,cas,thyme,munch,dagu,elish,enuma,alioth,apollo,lmi,psyche,pipa"
+          fi
+          DEVICES_JSON="[$(echo $DEVICES | sed 's/,/","/g' | sed 's/.*/"&"/')]"
+          echo "matrix={\"device\":$DEVICES_JSON}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    strategy:
+      matrix: ${{fromJson(needs.prepare.outputs.matrix)}}
+      fail-fast: false
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_HARDLINK: "true"
+      WORKDIR: "${{ github.workspace }}"
+      KERNEL_SOURCE: "${{ github.workspace }}/kernel_source"
+      TOOLCHAIN_DIR: "${{ github.workspace }}/toolchain"
+      DEVICE: "${{ matrix.device }}"
+
+    steps:
+      - name: Build Info
+        run: |
+          echo "Device: ${DEVICE} | System: ${{ github.event.inputs.compiled_system }}"
+          echo "KernelSU: ${{ github.event.inputs.kernelsu_variant }} | KPM: ${{ github.event.inputs.kpm_enable }}"
+          echo "Droidspaces: ${{ github.event.inputs.droidspaces_enable }} | Build: ${{ github.event.inputs.build_type }}"
+
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+
+      - name: Install dependencies
+        run: |
+          echo "Installing dependencies..."
+          sudo apt update && sudo apt upgrade -y
+          sudo dpkg --purge --force-all firefox 2>/dev/null || true
+          sudo apt-get install -y -o Dpkg::Options::="--force-overwrite" \
+            bc binutils-dev bison build-essential ca-certificates ccache cmake curl file flex \
+            git libelf-dev libssl-dev make ninja-build python3-dev texinfo u-boot-tools xz-utils \
+            zlib1g-dev libncurses-dev wget zip cpio python3 python3-pip tree jq
+          echo "Dependencies installed"
+
+      - name: Aggressive disk cleanup
+        run: |
+          echo "=== Before ==="
+          df -h /
+          sudo du -sh /opt /usr/local /usr/share /home/runner /var/cache 2>/dev/null || true
+          sudo rm -rf /opt/hostedtoolcache /opt/ghc /opt/pipx /opt/microsoft /opt/google
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/local/graalvm
+          sudo rm -rf /usr/local/go /usr/local/aws-cli /usr/local/aws-sam-cli
+          sudo rm -rf /usr/share/dotnet /usr/share/swift /usr/share/miniconda /usr/share/rust
+          sudo rm -rf /usr/lib/mono /usr/lib/jvm /usr/lib/firefox
+          sudo rm -rf /home/runner/.cargo /home/runner/go /home/runner/.dotnet
+          sudo rm -rf /home/runner/.cache/pip /home/runner/.npm /home/runner/.local/share
+          sudo rm -rf /var/lib/gems /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/snapd/*
+          sudo rm -rf /tmp/* /var/tmp/*
+          sudo apt clean -y 2>/dev/null || true
+          sudo journalctl --rotate 2>/dev/null; sudo journalctl --vacuum-size=1M 2>/dev/null || true
+          echo "=== After ==="
+          df -h /
+
+      - name: Config ccache
+        run: |
+          mkdir -p ~/.cache
+          ccache --version
+          ccache --max-size=4G
+          ccache --set-config=compression=true
+          ccache --zero-stats
+          echo "CCACHE_DIR=$HOME/.cache" >> $GITHUB_ENV
+
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache
+          key: ccache-${{ github.event.inputs.compiled_system }}-${{ hashFiles('**/Makefile') }}
+          restore-keys: |
+            ccache-${{ github.event.inputs.compiled_system }}-
+            ccache-
+
+      - name: Clone kernel source
+        run: |
+          echo "Cloning kernel source..."
+          git clone https://github.com/yspbwx2010/kernel_xiaomi_sm8250_mod.git --depth=1 $KERNEL_SOURCE
+          echo "Kernel source cloned"
+
+      - name: Cache toolchain
+        id: cache-toolchain
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.TOOLCHAIN_DIR }}
+          key: toolchain-clang-r547379-gcc-${{ hashFiles('**/*.sh') }}
+          restore-keys: |
+            toolchain-clang-r547379-gcc-
+            toolchain-
+
+      - name: Download toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          echo "Downloading toolchain..."
+          mkdir -p "$TOOLCHAIN_DIR/clang" "$TOOLCHAIN_DIR/gcc/gcc64" "$TOOLCHAIN_DIR/gcc/gcc32"
+          cd "$TOOLCHAIN_DIR/clang"
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz
+          tar -xzf clang-r547379.tar.gz
+          rm clang-r547379.tar.gz
+          cd "$TOOLCHAIN_DIR/gcc/gcc64"
+          git init && git remote add origin https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git
+          git fetch --depth 1 origin && git checkout FETCH_HEAD
+          cd "$TOOLCHAIN_DIR/gcc/gcc32"
+          git init && git remote add origin https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9.git
+          git fetch --depth 1 origin && git checkout FETCH_HEAD
+          echo "Toolchain downloaded"
+
+      - name: Config KernelSU
+        run: |
+          cd "$KERNEL_SOURCE"
+          KSU_VARIANT="${{ github.event.inputs.kernelsu_variant }}"
+          echo "KSU variant: $KSU_VARIANT"
+          if [ "$KSU_VARIANT" == "KernelSU" ]; then
+            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+          elif [ "$KSU_VARIANT" == "RKSU" ]; then
+            curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/susfs-rksu-master/kernel/setup.sh" | bash
+          else
+            echo "KSU disabled"
+          fi
+          KSUD_FILE="$KERNEL_SOURCE/KernelSU/kernel/ksud.c"
+          if [ -f "$KSUD_FILE" ] && ! grep -q "KSU_A2_VARS" "$KSUD_FILE"; then
+            printf '\n// KSU_A2_VARS: bool hooks default false\n' >> "$KSUD_FILE"
+            printf '#ifndef CONFIG_KPROBES\n' >> "$KSUD_FILE"
+            printf '/* already defined above */\n' >> "$KSUD_FILE"
+            printf '#else\n' >> "$KSUD_FILE"
+            printf 'bool ksu_vfs_read_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+            printf 'bool ksu_execveat_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+            printf 'bool ksu_input_hook __read_mostly = false;\n' >> "$KSUD_FILE"
+            printf '#endif\n' >> "$KSUD_FILE"
+            echo "Added KSU_A2_VARS"
+          fi
+          LINE=$(grep -n "unregister input kprobe" "$KSUD_FILE" | cut -d: -f1 | head -1)
+          [ -n "$LINE" ] && sed -i "${LINE}i\        ksu_input_hook = false;" "$KSUD_FILE" && printf '\n/* KSU_FIX_STOP */\n' >> "$KSUD_FILE" && echo "Safe mode fix"
+          for f in "$KERNEL_SOURCE/KernelSU/kernel/throne_tracker.c"; do
+            [ -f "$f" ] && sed -i 's|search_manager("/data/app", 2,|search_manager("/data/app", 3,|' "$f" && echo "Throne tracker fix"
+          done
+          echo "KSU config done"
+
+      - name: Build kernel
+        run: |
+          cd "$KERNEL_SOURCE"
+          export PATH="$TOOLCHAIN_DIR/clang/bin:$PATH"
+          MAKE_ARGS="ARCH=arm64 SUBARCH=arm64 LLVM=1 LLVM_IAS=1 \
+            CROSS_COMPILE=$TOOLCHAIN_DIR/gcc/gcc64/bin/aarch64-linux-android- \
+            CROSS_COMPILE_COMPAT=$TOOLCHAIN_DIR/gcc/gcc32/bin/arm-linux-androideabi- \
+            CROSS_COMPILE_ARM32=$TOOLCHAIN_DIR/gcc/gcc32/bin/arm-linux-androideabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            LD=ld.lld HOSTLD=ld.lld \
+            KCFLAGS=-Wno-error \
+            O=out"
+          SYSTEM="${{ github.event.inputs.compiled_system }}"
+          KSU="${{ github.event.inputs.kernelsu_variant }}"
+          KPM="${{ github.event.inputs.kpm_enable }}"
+          DROIDSPACES="${{ github.event.inputs.droidspaces_enable }}"
+          VERSION="${{ github.event.inputs.kernel_version }}"
+          echo "Generating config..."
+          make $MAKE_ARGS -j$(nproc --all) ${DEVICE}_defconfig
+          echo "Applying optimized config..."
+          scripts/config --file out/.config \
+            -e KALLSYMS -e KALLSYMS_ALL -e KPROBES -e HAVE_KPROBES -e KPROBE_EVENTS \
+            -e TMPFS_XATTR=y -e TMPFS_POSIX_ACL -e IP_NF_TARGET_TTL -e IP6_NF_TARGET_HL \
+            -e IP6_NF_MATCH_HL -e UCLAMP_TASK \
+            -e TCP_CONG_ADVANCED -e TCP_CONG_BIC -e TCP_CONG_CUBIC -e TCP_CONG_WESTWOOD \
+            -e TCP_CONG_HTCP -e TCP_CONG_HSTCP -e TCP_CONG_HYBLA -e TCP_CONG_VEGAS \
+            -e TCP_CONG_NV -e TCP_CONG_SCALABLE -e TCP_CONG_LP -e TCP_CONG_VENO \
+            -e TCP_CONG_YEAH -e TCP_CONG_ILLINOIS -e TCP_CONG_DCTCP -e TCP_CONG_CDG \
+            -e TCP_CONG_BBR -e DEFAULT_BBR -e NET_SCHED -e NET_SCH_HTB -e NET_SCH_HFSC \
+            -e NET_SCH_PRIO -e NET_SCH_MULTIQ -e NET_SCH_RED -e NET_SCH_SFB -e NET_SCH_SFQ \
+            -e NET_SCH_TEQL -e NET_SCH_TBF -e NET_SCH_CBS -e NET_SCH_ETF -e NET_SCH_TAPRIO \
+            -e NET_SCH_GRED -e NET_SCH_NETEM -e NET_SCH_DRR -e NET_SCH_MQPRIO -e NET_SCH_SKBPRIO \
+            -e NET_SCH_CHOKE -e NET_SCH_QFQ -e NET_SCH_CODEL -e NET_SCH_FQ_CODEL -e NET_SCH_CAKE \
+            -e NET_SCH_FQ -e NET_SCH_HHF -e NET_SCH_PIE -e NET_SCH_FQ_PIE -e NET_SCH_INGRESS \
+            -e NET_SCH_PLUG -e NET_SCH_ETS -e NET_SCH_FIFO -e NET_SCH_DEFAULT -e DEFAULT_FQ \
+            -e MQ_IOSCHED_DEADLINE -e MQ_IOSCHED_KYBER -e IOSCHED_BFQ -e BFQ_GROUP_IOSCHED \
+            -e ENERGY_MODEL -e CPU_IDLE -e CPU_IDLE_GOV_MENU -e CPU_IDLE_GOV_TEO \
+            -e ARM_PSCI_CPUIDLE -e CPU_FREQ -e CPU_FREQ_STAT -e CPU_FREQ_TIMES \
+            -e CPU_FREQ_GOV_POWERSAVE -e CPU_FREQ_GOV_CONSERVATIVE -e CPU_FREQ_GOV_USERSPACE \
+            -e CPU_FREQ_GOV_ONDEMAND \
+            -e ZRAM -e ZSMALLOC -e ZRAM_WRITEBACK -e CRYPTO_LZ4 -e CRYPTO_LZ4HC \
+            -e CRYPTO_LZ4K -e CRYPTO_LZ4KD -e CRYPTO_ZSTD -e CRYPTO_842 -e CRYPTO_LZO \
+            -e CRYPTO_DEFLATE -e ZRAM_DEF_COMP_LZ4KD -e SWAP -e ZSWAP -e ANDROID_SIMPLE_LMK \
+            -e CPU_FREQ_GOV_SCHEDHORIZON -e CPU_FREQ_DEFAULT_GOV_SCHEDHORIZON \
+            --set-val LITTLE_CPU_MASK 15 --set-val BIG_CPU_MASK 112 --set-val PRIME_CPU_MASK 128 \
+            -e LRU_GEN -e LRU_GEN_ENABLED
+          if [ "$SYSTEM" == "MIUI" ]; then
+            echo "Applying MIUI config..."
+            scripts/config --file out/.config \
+              --set-str STATIC_USERMODEHELPER_PATH /system/bin/micd \
+              -e PERF_CRITICAL_RT_TASK -e SF_BINDER -e OVERLAY_FS -d DEBUG_FS \
+              -e MIGT -e MIGT_ENERGY_MODEL -e MIHW -e PACKAGE_RUNTIME_INFO -e BINDER_OPT \
+              -e KPERFEVENTS -e MILLET -e PERF_HUMANTASK -d LTO_CLANG -d LOCALVERSION_AUTO \
+              -e XIAOMI_MIUI -d MI_MEMORY_SYSFS -e TASK_DELAY_ACCT -e MIUI_ZRAM_MEMORY_TRACKING \
+              -d CONFIG_MODULE_SIG_SHA512 -d CONFIG_MODULE_SIG_HASH \
+              -e MI_FRAGMENTION -e PERF_HELPER -e BOOTUP_RECLAIM -e MI_RECLAIM -e RTMM
+          fi
+          if [ "$KSU" == "RKSU" ]; then
+            scripts/config --file out/.config -e KSU -e KSU_MANUAL_HOOK -e KSU_SUSFS \
+              -e KSU_SUSFS_HAS_MAGIC_MOUNT -e KSU_SUSFS_SUS_PATH -e KSU_SUSFS_SUS_MOUNT \
+              -e KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT -e KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT \
+              -e KSU_SUSFS_SUS_KSTAT -d KSU_SUSFS_SUS_OVERLAYFS -e KSU_SUSFS_TRY_UMOUNT \
+              -e KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT -e KSU_SUSFS_SPOOF_UNAME \
+              -e KSU_SUSFS_ENABLE_LOG -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
+              -e KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG -e KSU_SUSFS_OPEN_REDIRECT \
+              -d KSU_SUSFS_SUS_SU
+          elif [ "$KSU" == "KernelSU" ]; then
+            scripts/config --file out/.config -e KSU
+          fi
+          if [ "$KSU" == "KernelSU" ] && [ "$KPM" == "enable" ]; then
+            scripts/config --file out/.config -e KPM
+          fi
+          if [ "$DROIDSPACES" == "enable" ]; then
+            scripts/config --file out/.config \
+              -e NAMESPACES -e UTS_NS -e IPC_NS -e USER_NS -e PID_NS -e NET_NS \
+              -e CGROUP_DEVICE -e CGROUP_BPF -e CPUSETS -e CGROUP_SCHED -e CGROUP_PIDS \
+              -e CGROUP_FREEZER -e CGROUP_CPUACCT -e CGROUP_NET_PRIO -e CGROUP_HUGETLB \
+              -e DEVTMPFS -e DEVTMPFS_MOUNT -e SECCOMP -e SECCOMP_FILTER \
+              -e POSIX_MQUEUE -e SIGNALFD -e TIMERFD -e EVENTFD -e EPOLL \
+              -e FANOTIFY -e FANOTIFY_ACCESS_PERMISSIONS -e INOTIFY_USER -e CHECKPOINT_RESTORE \
+              -e MEMCG -e MEMCG_SWAP -e MEMCG_KMEM -e CGROUP_PERF \
+              -e VETH -e TUN -e BRIDGE -e BRIDGE_NETFILTER \
+              -e NETFILTER_XT_TARGET_CT -e NETFILTER_XT_TARGET_CHECKSUM \
+              -e NF_NAT -e NF_NAT_REDIRECT -e NETFILTER_XT_MATCH_ADDRTYPE \
+              -e NETFILTER_XT_MATCH_IPVS -e IP_NF_NAT -e IP6_NF_NAT \
+              -e IP_NF_TARGET_MASQUERADE -e IP6_NF_TARGET_MASQUERADE \
+              -e NETFILTER_XT_MATCH_COMMENT -e DEVPTS_MULTIPLE_INSTANCES
+          fi
+          if [ ! -z "$VERSION" ]; then
+            sed -i "s/-dirty/-$VERSION/g" scripts/setlocalversion
+          else
+            sed -i "s/-dirty/-Yun/g" scripts/setlocalversion
+          fi
+          FULL_VERSION="$VERSION"
+          if [ ! -z "$FULL_VERSION" ]; then
+            main_version=$(echo "$FULL_VERSION" | grep -oE '^[0-9]+(\.[0-9]+)*')
+            custom_part=$(echo "$FULL_VERSION" | grep -oE '(-[a-zA-Z0-9]+)*$')
+            IFS='.' read -ra version_parts <<< "$main_version"
+            sed -i "2s/.*/VERSION = ${version_parts[0]}/" "$KERNEL_SOURCE/Makefile"
+            [ -n "${version_parts[1]}" ] && sed -i "3s/.*/PATCHLEVEL = ${version_parts[1]}/" "$KERNEL_SOURCE/Makefile"
+            [ -n "${version_parts[2]}" ] && sed -i "4s/.*/SUBLEVEL = ${version_parts[2]}/" "$KERNEL_SOURCE/Makefile"
+            sed -i "s/echo \"\$res\"/echo \"${custom_part}\"/g" "$KERNEL_SOURCE/scripts/setlocalversion"
+          fi
+          echo "Starting build..."
+          make $MAKE_ARGS -j$(nproc --all) 2>&1 | tee build.log; MAKE_EXIT=${PIPESTATUS[0]}
+          echo "make exit: $MAKE_EXIT"
+          if [ $MAKE_EXIT -eq 0 ] && [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/Image" ]; then
+            echo "Kernel build successful"
+          else
+            echo "Kernel build failed"
+            [ -f build.log ] && tail -n 200 build.log || ls -la "$KERNEL_SOURCE"
+            exit 1
+          fi
+          mkdir -p "$WORKDIR/modules_out"
+          make $MAKE_ARGS INSTALL_MOD_PATH="$WORKDIR/modules_out" modules_install 2>/dev/null || true
+
+      - name: KPM Patch
+        run: |
+          if [ "${{ github.event.inputs.kernelsu_variant }}" == "KernelSU" ] && [ "${{ github.event.inputs.kpm_enable }}" == "enable" ]; then
+            cd "$KERNEL_SOURCE/out/arch/arm64/boot"
+            curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux" -o patch
+            chmod 777 patch && ./patch && rm -f Image && mv oImage Image && echo "KPM patched" || echo "KPM failed, using original"
+          else
+            echo "KPM skipped"
+          fi
+
+      - name: Set version vars
+        run: |
+          cd "$KERNEL_SOURCE"
+          echo "GIT_COMMIT_ID=$(git rev-parse --short=6 HEAD)" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
+
+      - name: Package AK3
+        run: |
+          ZIP_NAME="${DEVICE}_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.BUILD_DATE }}_${{ env.GIT_COMMIT_ID }}_${{ github.event.inputs.build_type }}.zip"
+          echo "Packaging: $ZIP_NAME"
+          mkdir -p "$WORKDIR/ak3_out" && cd "$WORKDIR/ak3_out"
+          git clone https://github.com/liyafe1997/AnyKernel3.git --depth=1 && cd AnyKernel3
+          rm -rf .git .github README.md
+          sed -i 's/do.devicecheck=0/do.devicecheck=1/' anykernel.sh
+          sed -i 's/do.modules=0/do.modules=1/' anykernel.sh
+          sed -i '/device.name5=/a\device.name6=munch\ndevice.name7=munchin\ndevice.name8=RedmiK40S\ndevice.name9=POCOF4' anykernel.sh
+          mkdir -p kernels
+          cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
+          [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtb.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtb.img" kernels/dtb
+          [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" kernels/dtbo
+          if [ -d "$WORKDIR/modules_out/lib/modules" ]; then
+            MODDIR=$(ls "$WORKDIR/modules_out/lib/modules/" 2>/dev/null | head -1)
+            [ -n "$MODDIR" ] && mkdir -p modules/system/lib/modules && \
+              cp -r "$WORKDIR/modules_out/lib/modules/$MODDIR/"* modules/system/lib/modules/ 2>/dev/null || true
+          fi
+          zip -r "$ZIP_NAME" .
+          if [ -f "$ZIP_NAME" ]; then
+            ls -lh "$ZIP_NAME" && mv "$ZIP_NAME" ..
+          else
+            echo "Package failed" && exit 1
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Kernel-${{ matrix.device }}
+          path: ${{ github.workspace }}/ak3_out/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v8
+      with:
+        path: out
+
+    - name: Prepare release
+      run: |
+        mkdir -p release
+        device_list=()
+        while IFS= read -r zip_file; do
+          mv "$zip_file" "$GITHUB_WORKSPACE/release/"
+          dir_name=$(basename "$(dirname "$zip_file")")
+          device_name=$(echo "$dir_name" | sed 's/Kernel-//')
+          [ -n "$device_name" ] && device_list+=("$device_name")
+        done < <(find "$GITHUB_WORKSPACE/out" -name "*.zip" -type f)
+        TARGET_DEVICES=$(printf "%s\n" "${device_list[@]}" | sort -u | tr '\n' '-')
+        TARGET_DEVICES=${TARGET_DEVICES%-}
+        echo "TARGET_DEVICES=$TARGET_DEVICES" >> $GITHUB_ENV
+
+    - name: Set date
+      run: |
+        echo "RELEASE_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
+        echo "GIT_COMMIT_ID=$(git ls-remote https://github.com/yspbwx2010/kernel_xiaomi_sm8250_mod.git HEAD | cut -f1)" >> $GITHUB_ENV
+
+    - name: Post to Release
+      uses: softprops/action-gh-release@v3
+      with:
+        files: ${{ github.workspace }}/release/*.zip
+        name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}_${{ github.event.inputs.build_type }}
+        tag_name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}
+        body: |
+          Kernel build information
+
+          Device: ${{ env.TARGET_DEVICES }}
+          System: ${{ github.event.inputs.compiled_system }}
+          KernelSU: ${{ github.event.inputs.kernelsu_variant }}
+          KPM: ${{ github.event.inputs.kpm_enable }}
+          Container: ${{ github.event.inputs.droidspaces_enable }}
+          Build: ${{ github.event.inputs.build_type }}
+          Date: ${{ env.RELEASE_DATE }}
+          Commit: ${{ env.GIT_COMMIT_ID }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
