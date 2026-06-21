@@ -131,11 +131,25 @@ jobs:
           sudo apt update && sudo apt upgrade -y
           # 先移除可能导致问题的 firefox snap 钩子
           sudo dpkg --purge --force-all firefox 2>/dev/null || true
+          # 只装需要的库和工具(不用系统gcc/clang/lld，我们用自带的)
           sudo apt-get install -y -o Dpkg::Options::="--force-overwrite" \
             bc binutils-dev bison build-essential ca-certificates ccache cmake curl file flex \
             git libelf-dev libssl-dev make ninja-build python3-dev texinfo u-boot-tools xz-utils \
-            zlib1g-dev libncurses-dev wget zip cpio python3 python3-pip tree gcc clang lld llvm jq
+            zlib1g-dev libncurses-dev wget zip cpio python3 python3-pip tree jq
           echo "✅ Dependency installation complete (依赖安装完成)"
+
+      - name: 🧹 Aggressive disk cleanup (深度清理磁盘)
+        run: |
+          echo "=== 清理前 ==="
+          df -h /
+          sudo rm -rf /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet
+          sudo rm -rf /usr/share/swift /usr/local/share/boost /opt/ghc /usr/lib/mono
+          sudo rm -rf /usr/local/graalvm /var/lib/gems /var/cache/apt/archives/*.deb
+          sudo apt clean
+          sudo journalctl --rotate 2>/dev/null; sudo journalctl --vacuum-time=1s 2>/dev/null || true
+          sudo rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/* /var/cache/snapd/*
+          echo "=== 清理后 ==="
+          df -h /
 
       - name: ⚙️ Configuring ccache (配置 ccache)
         run: |
