@@ -258,15 +258,18 @@ jobs:
             fi
           fi
 
-          # 修复1: stop_input_hook() 的 CONFIG_KPROBES 分支不置 ksu_input_hook = false
-          # 这导致音量键开机触发 Safe Mode
-          for f in "$KERNEL_SOURCE/KernelSU/kernel/ksud.c"; do
-            if [ -f "$f" ] && ! grep -q "KSU_FIX_STOP" "$f"; then
-              sed -i '/#else/a\    ksu_input_hook = false;' "$f" && \
-              printf '\n/* KSU_FIX_STOP */\n' >> "$f" && \
-              echo "✅ Fixed stop_input_hook() to set ksu_input_hook = false"
-            fi
-          done
+          # 修复1: 在 stop_input_hook() 的 CONFIG_KPROBES 分支中设置 ksu_input_hook = false
+          # 否则音量键可能触发 Safe Mode
+          KSUD_FILE="$KERNEL_SOURCE/KernelSU/kernel/ksud.c"
+          if [ -f "$KSUD_FILE" ] && ! grep -q "KSU_FIX_STOP" "$KSUD_FILE"; then
+            python3 -c "import sys; path = '$KSUD_FILE'; lines = open(path).readlines()
+for i, line in enumerate(lines):
+    if 'unregister input kprobe' in line:
+        lines.insert(i, '\tksu_input_hook = false;\n'); break
+open(path, 'w').writelines(lines)
+print('Fixed stop_input_hook')
+" && printf '\n/* KSU_FIX_STOP */\n' >> "$KSUD_FILE" && echo "✅ Fixed Safe Mode"
+          fi
 
           # 修复2: throne_tracker.c search_manager 深度 2→3
           # Android 14 的 /data/app 路径变为 /data/app/~~/base.apk
