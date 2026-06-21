@@ -169,7 +169,7 @@ jobs:
           echo "CCACHE_DIR=$HOME/.cache" >> $GITHUB_ENV
 
       - name: 📥 Restore ccache (恢复 ccache 缓存)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache
           key: ccache-${{ github.event.inputs.compiled_system }}-${{ hashFiles('**/Makefile') }}
@@ -185,7 +185,7 @@ jobs:
 
       - name: 📥 Caching toolchain (缓存工具链)
         id: cache-toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.TOOLCHAIN_DIR }}
           key: toolchain-clang-r547379-gcc-${{ hashFiles('**/*.sh') }}
@@ -657,7 +657,7 @@ jobs:
           fi
 
       - name: 📤 Upload compilation results (上传编译结果)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Kernel-${{ matrix.device }}
           path: ${{ github.workspace }}/ak3_out/*.zip
@@ -669,7 +669,7 @@ jobs:
       contents: write
     steps:
     - name: 📥 Download all zip artifacts (下载所有 zip 构建产物)
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         path: out
 
@@ -701,7 +701,7 @@ jobs:
         echo "GIT_COMMIT_ID=$GIT_COMMIT_ID" >> $GITHUB_ENV
 
     - name: 📤 Post to Release (发布到 Release)
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         files: /home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/release/*.zip
         name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}_${{ github.event.inputs.build_type }}
