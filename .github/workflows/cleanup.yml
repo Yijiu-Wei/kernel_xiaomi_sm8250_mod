@@ -1,80 +1,70 @@
-name: Cleanup Disk
+name: Initialize Disk
 
 on:
   workflow_dispatch:
 
 jobs:
-  cleanup:
+  init:
     runs-on: ubuntu-latest
     steps:
-      - name: 🧹 Deep Clean Runner Disk
+      - name: 🧹 Initialize Runner Disk
         run: |
           echo "========================================="
-          echo "          DISK CLEANUP START"
+          echo "        磁盘初始化 / DISK INIT"
           echo "========================================="
           echo ""
-          echo "=== Before ==="
+          echo "=== 清理前 ==="
           df -h /
 
           echo ""
-          echo "=== 1. Remove hosted tool caches ==="
-          sudo rm -rf /opt/hostedtoolcache /opt/ghc /opt/pipx /opt/microsoft /opt/google
-          sudo rm -rf /opt/az
-
-          echo ""
-          echo "=== 2. Remove Android SDK & NDK ==="
+          echo ">>> 1. 删除 Android SDK / NDK"
           sudo rm -rf /usr/local/lib/android
 
-          echo ""
-          echo "=== 3. Remove .NET and Mono ==="
+          echo ">>> 2. 删除 .NET / Mono"
           sudo rm -rf /usr/share/dotnet /usr/lib/mono
           sudo rm -rf /home/runner/.dotnet
 
-          echo ""
-          echo "=== 4. Remove Java JDKs ==="
+          echo ">>> 3. 删除 Java / GraalVM"
           sudo rm -rf /usr/lib/jvm /usr/local/graalvm
 
-          echo ""
-          echo "=== 5. Remove Python/Ruby/Node.js artifacts ==="
-          sudo rm -rf /home/runner/.cache/pip /home/runner/.npm
-          sudo rm -rf /var/lib/gems
-          sudo rm -rf /usr/share/miniconda
-
-          echo ""
-          echo "=== 6. Remove large shared libs ==="
+          echo ">>> 4. 删除 Swift / Rust / Go / Cargo"
           sudo rm -rf /usr/share/swift /usr/share/rust
-          sudo rm -rf /usr/local/go /usr/local/aws-cli /usr/local/aws-sam-cli
-          sudo rm -rf /usr/local/share/boost
-
-          echo ""
-          echo "=== 7. Remove Cargo & Go artifacts ==="
+          sudo rm -rf /usr/local/go /usr/share/miniconda
           sudo rm -rf /home/runner/.cargo /home/runner/go
 
-          echo ""
-          echo "=== 8. Remove Firefox and browsers ==="
-          sudo rm -rf /usr/lib/firefox /usr/lib/firefox-addons
-          sudo rm -rf /home/runner/.local/share
+          echo ">>> 5. 删除 AWS / Azure / Google 工具"
+          sudo rm -rf /usr/local/aws-cli /usr/local/aws-sam-cli
+          sudo rm -rf /opt/az /opt/google /opt/microsoft
 
-          echo ""
-          echo "=== 9. Clean package caches ==="
+          echo ">>> 6. 删除 Node / Python / Ruby 缓存"
+          sudo rm -rf /home/runner/.npm /home/runner/.cache/pip
+          sudo rm -rf /var/lib/gems
+
+          echo ">>> 7. 删除 Firefox / 浏览器"
+          sudo rm -rf /usr/lib/firefox /usr/lib/firefox-addons
+
+          echo ">>> 8. 删除工具链缓存"
+          sudo rm -rf /opt/hostedtoolcache /opt/ghc /opt/pipx
+          sudo rm -rf /usr/local/share/boost
+
+          echo ">>> 9. 清理包管理缓存"
           sudo apt clean -y 2>/dev/null || true
           sudo rm -rf /var/lib/apt/lists/*
           sudo rm -rf /var/cache/apt/archives/*.deb
           sudo rm -rf /var/cache/snapd/*
 
-          echo ""
-          echo "=== 10. Clean temporary files ==="
+          echo ">>> 10. 清理日志和临时文件"
           sudo rm -rf /tmp/* /var/tmp/*
           sudo journalctl --rotate 2>/dev/null
           sudo journalctl --vacuum-size=1M 2>/dev/null || true
 
           echo ""
           echo "========================================="
-          echo "          DISK CLEANUP DONE"
+          echo "            清理完成"
           echo "========================================="
           echo ""
-          echo "=== After ==="
-          echo "Largest directories remaining:"
-          sudo du -sh /* 2>/dev/null | sort -rh | head -15
-          echo ""
+          echo "=== 清理后 ==="
           df -h /
+          echo ""
+          echo "=== 最大目录 Top 10 ==="
+          sudo du -sh /* 2>/dev/null | sort -rh | head -10
