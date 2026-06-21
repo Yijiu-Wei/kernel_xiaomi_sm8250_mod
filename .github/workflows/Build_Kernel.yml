@@ -367,11 +367,21 @@ jobs:
           echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
 
       - name: Package AK3
+        timeout-minutes: 10
         run: |
           ZIP_NAME="${DEVICE}_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.BUILD_DATE }}_${{ env.GIT_COMMIT_ID }}_${{ github.event.inputs.build_type }}.zip"
           echo "Packaging: $ZIP_NAME"
-          mkdir -p "$WORKDIR/ak3_out" && cd "$WORKDIR/ak3_out"
-          git clone https://github.com/liyafe1997/AnyKernel3.git --depth=1 && cd AnyKernel3
+          rm -rf "$WORKDIR/ak3_out"
+          mkdir -p "$WORKDIR/ak3_out/AnyKernel3"
+          cd "$WORKDIR/ak3_out"
+          echo "Cloning AnyKernel3..."
+          git clone --depth=1 --single-branch https://github.com/liyafe1997/AnyKernel3.git 2>&1 | tail -5
+          if [ ! -d AnyKernel3 ]; then
+            echo "Git clone failed, retrying with alternative..."
+            rm -rf AnyKernel3
+            git clone --depth=1 --single-branch https://github.com/osm0sis/AnyKernel3.git 2>&1 | tail -5
+          fi
+          cd AnyKernel3
           rm -rf .git .github README.md
           sed -i 's/do.devicecheck=0/do.devicecheck=1/' anykernel.sh
           sed -i 's/do.modules=0/do.modules=1/' anykernel.sh
@@ -382,12 +392,20 @@ jobs:
           [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" kernels/dtbo
           if [ -d "$WORKDIR/modules_out/lib/modules" ]; then
             MODDIR=$(ls "$WORKDIR/modules_out/lib/modules/" 2>/dev/null | head -1)
-            [ -n "$MODDIR" ] && mkdir -p modules/system/lib/modules && \
+            if [ -n "$MODDIR" ]; then
+              mkdir -p modules/system/lib/modules
               cp -r "$WORKDIR/modules_out/lib/modules/$MODDIR/"* modules/system/lib/modules/ 2>/dev/null || true
+              rm -rf modules/system/lib/modules/build 2>/dev/null || true
+              echo "Modules copied: $(find modules/system/lib/modules -name '*.ko' 2>/dev/null | wc -l) .ko files"
+              rm -rf modules/system/lib/modules/build 2>/dev/null || true
+              echo "Removed build symlink to prevent zip loop"
+            fi
           fi
-          zip -r "$ZIP_NAME" .
+          echo "Zipping..."
+          zip -r --symlinks "$ZIP_NAME" . 2>&1
           if [ -f "$ZIP_NAME" ]; then
             ls -lh "$ZIP_NAME" && mv "$ZIP_NAME" ..
+            echo "Package created successfully"
           else
             echo "Package failed" && exit 1
           fi
