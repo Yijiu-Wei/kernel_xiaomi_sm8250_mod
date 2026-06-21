@@ -142,14 +142,22 @@ jobs:
         run: |
           echo "=== 清理前 ==="
           df -h /
-          sudo rm -rf /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet
-          sudo rm -rf /usr/share/swift /usr/local/share/boost /opt/ghc /usr/lib/mono
-          sudo rm -rf /usr/local/graalvm /var/lib/gems /var/cache/apt/archives/*.deb
-          sudo apt clean
-          sudo journalctl --rotate 2>/dev/null; sudo journalctl --vacuum-time=1s 2>/dev/null || true
-          sudo rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/* /var/cache/snapd/*
+          sudo du -sh /opt /usr/local /usr/share /home/runner /var/cache 2>/dev/null || true
+          echo "--- 清空可删除的大目录 ---"
+          sudo rm -rf /opt/hostedtoolcache /opt/ghc /opt/pipx /opt/microsoft /opt/google
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/local/graalvm
+          sudo rm -rf /usr/local/go /usr/local/aws-cli /usr/local/aws-sam-cli
+          sudo rm -rf /usr/share/dotnet /usr/share/swift /usr/share/miniconda /usr/share/rust
+          sudo rm -rf /usr/lib/mono /usr/lib/jvm /usr/lib/firefox
+          sudo rm -rf /home/runner/.cargo /home/runner/go /home/runner/.dotnet
+          sudo rm -rf /home/runner/.cache/pip /home/runner/.npm /home/runner/.local/share
+          sudo rm -rf /var/lib/gems /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/snapd/*
+          sudo rm -rf /tmp/* /var/tmp/*
+          sudo apt clean -y 2>/dev/null || true
+          sudo journalctl --rotate 2>/dev/null; sudo journalctl --vacuum-size=1M 2>/dev/null || true
           echo "=== 清理后 ==="
           df -h /
+          sudo du -sh /opt /usr/local /usr/share /home/runner /var/cache 2>/dev/null || true
 
       - name: ⚙️ Configuring ccache (配置 ccache)
         run: |
