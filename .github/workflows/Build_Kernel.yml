@@ -229,8 +229,6 @@ jobs:
             printf '#endif\n' >> "$KSUD_FILE"
             echo "Added KSU_A2_VARS"
           fi
-          LINE=$(grep -n "unregister input kprobe" "$KSUD_FILE" | cut -d: -f1 | head -1)
-          [ -n "$LINE" ] && sed -i "${LINE}i\        ksu_input_hook = false;" "$KSUD_FILE" && printf '\n/* KSU_FIX_STOP */\n' >> "$KSUD_FILE" && echo "Safe mode fix"
           for f in "$KERNEL_SOURCE/KernelSU/kernel/throne_tracker.c"; do
             [ -f "$f" ] && sed -i 's|search_manager("/data/app", 2,|search_manager("/data/app", 3,|' "$f" && echo "Throne tracker fix"
           done
