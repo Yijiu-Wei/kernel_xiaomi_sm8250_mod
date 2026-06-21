@@ -129,7 +129,9 @@ jobs:
         run: |
           echo "正在安装构建依赖..."
           sudo apt update && sudo apt upgrade -y
-          sudo apt install -y \
+          # 先移除可能导致问题的 firefox snap 钩子
+          sudo dpkg --purge --force-all firefox 2>/dev/null || true
+          sudo apt-get install -y -o Dpkg::Options::="--force-overwrite" \
             bc binutils-dev bison build-essential ca-certificates ccache cmake curl file flex \
             git libelf-dev libssl-dev make ninja-build python3-dev texinfo u-boot-tools xz-utils \
             zlib1g-dev libncurses-dev wget zip cpio python3 python3-pip tree gcc clang lld llvm jq
