@@ -261,6 +261,25 @@ jobs:
             fi
           fi
 
+          # 修复1: stop_input_hook() 的 CONFIG_KPROBES 分支不置 ksu_input_hook = false
+          # 这导致音量键开机触发 Safe Mode
+          for f in "$KERNEL_SOURCE/KernelSU/kernel/ksud.c"; do
+            if [ -f "$f" ] && ! grep -q "KSU_FIX_STOP" "$f"; then
+              sed -i '/#else/a\    ksu_input_hook = false;' "$f" && \
+              printf '\n/* KSU_FIX_STOP */\n' >> "$f" && \
+              echo "✅ Fixed stop_input_hook() to set ksu_input_hook = false"
+            fi
+          done
+
+          # 修复2: throne_tracker.c search_manager 深度 2→3
+          # Android 14 的 /data/app 路径变为 /data/app/~~/base.apk
+          for f in "$KERNEL_SOURCE/KernelSU/kernel/throne_tracker.c"; do
+            if [ -f "$f" ]; then
+              sed -i 's/search_manager("\/data\/app", 2,/search_manager("\/data\/app", 3,/' "$f" && \
+              echo "✅ Fixed throne_tracker.c depth 2->3 for Android 14"
+            fi
+          done
+
           echo "✅ KernelSU configuration complete (KernelSU 配置完成)"
 
       - name: 🔨 Build the kernel (构建内核)
@@ -306,7 +325,6 @@ jobs:
             -e KALLSYMS_ALL \
             -e KPROBES \
             -e HAVE_KPROBES \
-            -e KPROBE_EVENTS \
             -e KPROBE_EVENTS \
             -e TMPFS_XATTR=y \
             -e TMPFS_POSIX_ACL \
@@ -423,7 +441,6 @@ jobs:
                   -e PERF_HUMANTASK \
                   -d LTO_CLANG \
                   -d LOCALVERSION_AUTO \
-                  -e SF_BINDER \
                   -e XIAOMI_MIUI \
                   -d MI_MEMORY_SYSFS \
                   -e TASK_DELAY_ACCT \
@@ -466,7 +483,7 @@ jobs:
           fi
 
           # 判断KPM是否启用并开启相关配置
-          if [ "$KSU" == "RKSU" ] && [ "$KPM" == "enable" ]; then
+          if [ "$KSU" == "SukiSU-Ultra" ] && [ "$KPM" == "enable" ]; then
               echo "🔧 Enabling KPM Configuration... (开启 KPM 配置)"
               scripts/config --file out/.config \
                   -e KPM
@@ -577,6 +594,13 @@ jobs:
               exit 1
           fi
 
+          # 安装内核模块
+          echo "📦 Installing kernel modules..."
+          mkdir -p "$WORKDIR/modules_out"
+          make $MAKE_ARGS INSTALL_MOD_PATH="$WORKDIR/modules_out" modules_install 2>/dev/null || \
+            echo "⚠️ modules_install skipped (no modules or not supported)"
+          echo "✅ Kernel modules installed if any"
+
           # 显示 ccache 统计信息
           echo "📊 CCache Statistics (CCache 统计信息):"
           ccache --show-stats
@@ -586,7 +610,7 @@ jobs:
           KSU_VARIANT="${{ github.event.inputs.kernelsu_variant }}"
           KPM_ENABLE="${{ github.event.inputs.kpm_enable }}"
 
-          if [ "$KSU_VARIANT" == "RKSU" ] && [ "$KPM_ENABLE" == "enable" ]; then
+          if [ "$KSU_VARIANT" == "SukiSU-Ultra" ] && [ "$KPM_ENABLE" == "enable" ]; then
             echo "🛠️ 正在修补 Image 文件..."
             cd "$KERNEL_SOURCE/out/arch/arm64/boot"
             curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux" -o patch
@@ -636,12 +660,30 @@ jobs:
           # 删除不需要的文件
           rm -rf .git .github README.md
 
+          # 添加设备保护: 设置 do.devicecheck=1 并添加 munch 设备名
+          sed -i 's/do.devicecheck=0/do.devicecheck=1/' anykernel.sh
+          # 启用模块安装: do.modules=0 → 1
+          sed -i 's/do.modules=0/do.modules=1/' anykernel.sh
+          sed -i '/device.name5=/a\device.name6=munch\ndevice.name7=munchin\ndevice.name8=RedmiK40S\ndevice.name9=POCOF4' anykernel.sh
+          echo "✅ Added device protection for munch"
+
           # 复制内核镜像(放入 kernels/ 目录，AK3 的 anykernel.sh 会把它移到根目录)
           mkdir -p kernels
           cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
           # 如果存在 dtb 也复制(某些设备需要)
           [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtb.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtb.img" kernels/dtb
-          [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" kernels/
+          [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" ] && cp "$KERNEL_SOURCE/out/arch/arm64/boot/dtbo.img" kernels/dtbo && \
+            sed -i 's/# flash_dtbo;/flash_dtbo;/' anykernel.sh && echo "✅ Enabled dtbo flashing"
+
+          # 复制内核模块(如果有编译出的 .ko)
+          if [ -d "$WORKDIR/modules_out/lib/modules" ]; then
+            MODDIR=$(ls "$WORKDIR/modules_out/lib/modules/" 2>/dev/null | head -1)
+            if [ -n "$MODDIR" ]; then
+              mkdir -p modules/system/lib/modules
+              cp -r "$WORKDIR/modules_out/lib/modules/$MODDIR/"* modules/system/lib/modules/ 2>/dev/null || true
+              echo "✅ Kernel modules copied to AK3"
+            fi
+          fi
 
           # 打包
           echo "📦 Flashing package being created (正在创建刷机包): $ZIP_NAME"
@@ -676,8 +718,8 @@ jobs:
     - name: 📝 Preparing files for release (准备发布文件)
       run: |
         mkdir -p release
-        RELEASE_DIR="/home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/release"
-        OUT_DIR="/home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/out"
+        RELEASE_DIR="$GITHUB_WORKSPACE/release"
+        OUT_DIR="$GITHUB_WORKSPACE/out"
         device_list=()
         # download-artifact@v8 may or may not create subdirectories
         # Find all zip files recursively and collect device names
@@ -702,7 +744,7 @@ jobs:
     - name: 📤 Post to Release (发布到 Release)
       uses: softprops/action-gh-release@v3
       with:
-        files: /home/runner/work/kernel_xiaomi_sm8250_mod/kernel_xiaomi_sm8250_mod/release/*.zip
+        files: ${{ github.workspace }}/release/*.zip
         name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}_${{ github.event.inputs.build_type }}
         tag_name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}
         body: |
