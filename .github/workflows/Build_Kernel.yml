@@ -308,9 +308,17 @@ jobs:
           DROIDSPACES="${{ github.event.inputs.droidspaces_enable }}"
           VERSION="${{ github.event.inputs.kernel_version }}"
 
-          # 生成设备配置
-          echo "🔧 Generating ${DEVICE} configuration... (正在生成 ${DEVICE} 的配置)"
-          make $MAKE_ARGS -j$(nproc --all) ${DEVICE}_defconfig
+          # 生成设备配置 (crDroid 内核使用 SoC 级 defconfig)
+          echo "Generating kernel config for ${DEVICE}..."
+          if [ "$DEVICE" == "munch" ]; then
+            make $MAKE_ARGS -j$(nproc --all) vendor/kona_defconfig
+          elif [ "$DEVICE" == "umi" ] || [ "$DEVICE" == "cmi" ] || [ "$DEVICE" == "cas" ]; then
+            make $MAKE_ARGS -j$(nproc --all) vendor/kona_defconfig
+          elif [ "$DEVICE" == "alioth" ]; then
+            make $MAKE_ARGS -j$(nproc --all) vendor/lito_defconfig
+          else
+            make $MAKE_ARGS -j$(nproc --all) ${DEVICE}_defconfig
+          fi
 
           # 开启一些附加优化配置
           echo "🔧 Applying basic optimized configurations... (应用基本优化配置)"
@@ -415,6 +423,8 @@ jobs:
             --set-val PRIME_CPU_MASK 128 \
             -e LRU_GEN \
             -e LRU_GEN_ENABLED
+          # 禁用模块签名 (KSU 需要加载未签名模块)
+          scripts/config --file out/.config -d MODULE_SIG -d MODULE_SIG_FORCE -d MODULE_SIG_SHA512
 
           # 根据系统类型修改配置
           if [ "$SYSTEM" == "MIUI" ]; then
