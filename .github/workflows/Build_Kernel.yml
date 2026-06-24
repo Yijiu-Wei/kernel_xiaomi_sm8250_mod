@@ -194,12 +194,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.TOOLCHAIN_DIR }}
-          # ⚠️ 4.19 内核兼容性：使用 Clang 14 (r450784d) 而非 Clang 19 (r547379)
-          # 4.19 内核代码使用较老的 C 方言和编译器标志，Clang 19+ 可能不兼容
-          # Clang 14 (r450784d) 是 Android 14 内核编译的标准工具链
-          key: toolchain-clang-r450784d-gcc
+          # 使用系统 Clang (Ubuntu 24.04 自带 Clang 18+，实测兼容 4.19 内核)
+          key: toolchain-system-clang-gcc
           restore-keys: |
-            toolchain-clang-r450784d-gcc-
+            toolchain-system-clang-gcc-
             toolchain-
 
       - name: 📥 Download the compilation toolchain (下载编译工具链)
@@ -259,7 +257,7 @@ jobs:
           echo "⚙️ Configure KernelSU Variants: $KSU_VARIANT (配置 KernelSU 变体: $KSU_VARIANT)"
 
           if [ "$KSU_VARIANT" == "SukiSU-Ultra" ]; then
-            curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
+            curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
           elif [ "$KSU_VARIANT" == "KernelSU" ]; then
             curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
           elif [ "$KSU_VARIANT" == "RKSU" ]; then
@@ -284,10 +282,18 @@ jobs:
             [ -f "$f" ] && sed -i 's|search_manager("/data/app", 2,|search_manager("/data/app", 3,|' "$f" && echo "Fixed throne_tracker depth"
           done
 
+          # 5) 修复 usbpd.h 缺少 #include <linux/err.h> (ERR_PTR/ENODEV 未定义)
+          if [ -f "$KERNEL_SOURCE/include/linux/usb/usbpd.h" ]; then
+            grep -q "linux/err.h" "$KERNEL_SOURCE/include/linux/usb/usbpd.h" || \
+              sed -i '/#include <linux\/list.h>/a #include <linux/err.h>' "$KERNEL_SOURCE/include/linux/usb/usbpd.h" && \
+              echo "Fixed usbpd.h: added #include <linux/err.h>"
+          fi
+
           # 4) SukiSU-Ultra 不使用旧版 #ifdef CONFIG_KSU 钩子 (它用 kprobe)
           # 去掉 4 个内核源码文件中的 #ifdef CONFIG_KSU 守卫, 避免未定义符号
+          # 注意: 使用 sed 内联处理而非外部 Python 脚本（避免脚本缺失导致构建失败）
           for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c; do
-            [ -f "$KERNEL_SOURCE/$f" ] && python3 "$GITHUB_WORKSPACE/build_tools/.github/workflows/strip_ksu_guards.py" "$KERNEL_SOURCE/$f" && echo "Stripped KSU guards from $f"
+            [ -f "$KERNEL_SOURCE/$f" ] && sed -i '/^#ifdef CONFIG_KSU$/,/^#endif$/{/^#ifdef CONFIG_KSU$/d;/^#endif$/d}' "$KERNEL_SOURCE/$f" && echo "Stripped KSU guards from $f"
           done
 
           echo "KSU config done"
@@ -774,7 +780,7 @@ jobs:
           fi
           cd AnyKernel3
           rm -rf .git .github README.md
-          python3 "$GITHUB_WORKSPACE/build_tools/.github/workflows/write_anykernel.py" anykernel.sh
+          python3 "${{ github.workspace }}/build_tools/scripts/write_anykernel.py" anykernel.sh
           echo "anykernel.sh rewritten"
           mkdir -p kernels
           cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
