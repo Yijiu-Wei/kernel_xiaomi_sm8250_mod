@@ -35,11 +35,17 @@ case $userflavor in
 esac;
 ui_print "  -> $os_string is detected!";
 
+# 复制内核镜像和设备树到根目录
 mv $home/kernels/Image $home/Image;
 [ -f $home/kernels/dtb ] && mv $home/kernels/dtb $home/dtb;
 [ -f $home/kernels/dtbo ] && mv $home/kernels/dtbo $home/dtbo;
 
-write_boot;
+# 刷入 boot 分区
+split_boot;
+flash_boot;
+
+# 如果有 dtbo 则刷入
+[ -f $home/dtbo ] && flash_dtbo;
 """
 
 path = sys.argv[1]
