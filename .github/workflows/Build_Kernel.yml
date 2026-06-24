@@ -189,9 +189,12 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.TOOLCHAIN_DIR }}
-          key: toolchain-clang-${{ hashFiles('**/*.sh') }}
+          # ⚠️ 4.19 内核兼容性：使用 Clang 14 (r450784d) 而非 Clang 19 (r547379)
+          # 4.19 内核代码使用较老的 C 方言和编译器标志，Clang 19+ 可能不兼容
+          # Clang 14 (r450784d) 是 Android 14 内核编译的标准工具链
+          key: toolchain-clang-r450784d-gcc
           restore-keys: |
-            toolchain-clang-r547379-gcc-
+            toolchain-clang-r450784d-gcc-
             toolchain-
 
       - name: 📥 Download the compilation toolchain (下载编译工具链)
@@ -203,12 +206,12 @@ jobs:
           mkdir -p "$TOOLCHAIN_DIR/gcc/gcc64"
           mkdir -p "$TOOLCHAIN_DIR/gcc/gcc32"
 
-          # 下载 Clang
-          echo "正在下载 Clang..."
+          # 下载 Clang 14 (r450784d) — 4.19 内核兼容版本
+          echo "正在下载 Clang 14 (r450784d — 4.19 内核兼容版本)..."
           cd "$TOOLCHAIN_DIR/clang"
-          # 优先从 AOSP googlesource 下载 (之前构建成功过)
-          if wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" -O clang.tar.gz 2>/dev/null && tar -xzf clang.tar.gz 2>/dev/null; then
-            echo "Clang r547379 下载完成"
+          # 优先从 AOSP googlesource 下载
+          if wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r450784d.tar.gz" -O clang.tar.gz 2>/dev/null && tar -xzf clang.tar.gz 2>/dev/null; then
+            echo "Clang 14 (r450784d) 下载完成 — 4.19 兼容版本"
           else
             echo "AOSP Clang 不可用, 使用系统 Clang..."
             rm -rf "$TOOLCHAIN_DIR/clang"/*
@@ -249,7 +252,7 @@ jobs:
           echo "⚙️ Configure KernelSU Variants: $KSU_VARIANT (配置 KernelSU 变体: $KSU_VARIANT)"
 
           if [ "$KSU_VARIANT" == "SukiSU-Ultra" ]; then
-            curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
+            curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
           elif [ "$KSU_VARIANT" == "KernelSU" ]; then
             curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
           elif [ "$KSU_VARIANT" == "RKSU" ]; then
@@ -274,7 +277,44 @@ jobs:
             [ -f "$f" ] && sed -i 's|search_manager("/data/app", 2,|search_manager("/data/app", 3,|' "$f" && echo "Fixed throne_tracker depth"
           done
 
+          # 4) SukiSU-Ultra 不使用旧版 #ifdef CONFIG_KSU 钩子 (它用 kprobe)
+          # 去掉 4 个内核源码文件中的 #ifdef CONFIG_KSU 守卫, 避免未定义符号
+          for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c; do
+            [ -f "$KERNEL_SOURCE/$f" ] && sed -i '/^#ifdef CONFIG_KSU$/,/^#endif$/{/^#ifdef CONFIG_KSU$/d;/^#endif$/d}' "$KERNEL_SOURCE/$f" && echo "Stripped KSU guards from $f"
+          done
+
           echo "KSU config done"
+
+      # ── DroidSpaces 内核补丁 ──
+      - name: 🧰 Patch DroidSpaces kernel source (打 DroidSpaces 内核补丁)
+        if: ${{ github.event.inputs.droidspaces_enable == 'enable' }}
+        run: |
+          cd "$KERNEL_SOURCE"
+
+          echo "正在下载 DroidSpaces 内核补丁..."
+          mkdir -p patches
+
+          # 补丁 1：修复 xt_qtaguid 内核崩溃
+          wget -q -O patches/fix_xt_qtaguid.patch \
+            "https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/master/Documentation/resources/kernel-patches/non-GKI/01.fix_kernel_panic_in_xt_qtaguid.patch"
+
+          if patch -p1 -N < patches/fix_xt_qtaguid.patch; then
+            echo "✅ xt_qtaguid 补丁应用成功"
+          else
+            echo "ℹ️ xt_qtaguid 补丁已存在或无需应用"
+          fi
+
+          # 补丁 2：修复 CGroup 文件前缀处理
+          wget -q -O patches/fix_cgroup_prefix.patch \
+            "https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/master/Documentation/resources/kernel-patches/non-GKI/02.fix_restore%20cgroup%20file%20prefix%20handling%20.patch"
+
+          if patch -p1 -N < patches/fix_cgroup_prefix.patch; then
+            echo "✅ CGroup 补丁应用成功"
+          else
+            echo "ℹ️ CGroup 补丁已存在或无需应用"
+          fi
+
+          echo "✅ DroidSpaces 补丁处理完成"
 
       - name: 🔨 Build the kernel (构建内核)
         run: |
@@ -425,6 +465,8 @@ jobs:
             -e LRU_GEN_ENABLED
           # 禁用模块签名 (KSU 需要加载未签名模块)
           scripts/config --file out/.config -d MODULE_SIG -d MODULE_SIG_FORCE -d MODULE_SIG_SHA512
+          # 禁用 USB PD 驱动 (crDroid 内核中 ps5169 符号缺失)
+          scripts/config --file out/.config -d TYPEC_UCSI -d USB_PD -d PD_ENGINE
 
           # 根据系统类型修改配置
           if [ "$SYSTEM" == "MIUI" ]; then
@@ -480,8 +522,42 @@ jobs:
                   -e KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
                   -e KSU_SUSFS_OPEN_REDIRECT \
                   -d KSU_SUSFS_SUS_SU
-          elif [ "$KSU" == "SukiSU-Ultra" ] || [ "$KSU" == "KernelSU" ]; then
-              echo "Applying KernelSU config..."
+          elif [ "$KSU" == "SukiSU-Ultra" ]; then
+              echo "🔧 Applying SukiSU-Ultra Configuration with SUSFS... (应用 SukiSU-Ultra SUSFS 配置)"
+              scripts/config --file out/.config \
+                  -e KSU \
+                  -e KSU_MANUAL_HOOK \
+                  -e KSU_SUSFS \
+                  -e KSU_SUSFS_HAS_MAGIC_MOUNT \
+                  -e KSU_SUSFS_SUS_PATH \
+                  -e KSU_SUSFS_SUS_MOUNT \
+                  -e KSU_SUSFS_SUS_KSTAT \
+                  -d KSU_SUSFS_SUS_OVERLAYFS \
+                  -e KSU_SUSFS_SPOOF_UNAME \
+                  -e KSU_SUSFS_ENABLE_LOG \
+                  -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
+                  -e KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
+                  -e KSU_SUSFS_OPEN_REDIRECT \
+                  -d KSU_SUSFS_SUS_SU
+
+              # SUSFS auto-mount 和 auto-umount 功能 — 如果同时启用 DroidSpaces 则禁用
+              # DroidSpaces 官方文档明确说明不支持 SuSFS，尤其是 mount 隐藏功能会导致容器异常
+              if [ "$DROIDSPACES" == "enable" ]; then
+                  echo "   ℹ️ DroidSpaces 已启用 → 禁用 SUSFS auto-mount/hide 功能以避免冲突"
+                  scripts/config --file out/.config \
+                      -d KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT \
+                      -d KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT \
+                      -d KSU_SUSFS_TRY_UMOUNT \
+                      -d KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
+              else
+                  scripts/config --file out/.config \
+                      -e KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT \
+                      -e KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT \
+                      -e KSU_SUSFS_TRY_UMOUNT \
+                      -e KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
+              fi
+          elif [ "$KSU" == "KernelSU" ]; then
+              echo "🔧 Applying KernelSU Configuration... (应用 KernelSU 配置)"
               scripts/config --file out/.config \
                   -e KSU
           fi
@@ -546,9 +622,27 @@ jobs:
                   -e IP_NF_TARGET_MASQUERADE \
                   -e IP6_NF_TARGET_MASQUERADE \
                   -e NETFILTER_XT_MATCH_COMMENT \
-                  -e DEVPTS_MULTIPLE_INSTANCES
+                  -e DEVPTS_MULTIPLE_INSTANCES \
+                  -e SYSVIPC \
+                  -e OVERLAY_FS
+
+              # ── 4.19 内核补充选项（legacy netfilter，容器 NAT 必需）──
+              scripts/config --file out/.config \
+                  -e NF_CONNTRACK_IPV4 \
+                  -e NF_NAT_IPV4
+
+              # 必须禁用 — 否则容器内无法联网
+              scripts/config --file out/.config \
+                  -d ANDROID_PARANOID_NETWORK
+
               echo "✅ Droidspaces support configured (容器支持配置完成)"
           fi
+
+          # ═══════════════════════════════════════════════════
+          # 解析所有 config 依赖关系（确保新增选项自动处理默认值）
+          # ═══════════════════════════════════════════════════
+          echo "🔧 Resolving Kconfig dependencies... (解析内核配置依赖)"
+          make $MAKE_ARGS olddefconfig
 
           # 修改内核版本号
           if [ ! -z "$VERSION" ]; then
@@ -584,6 +678,30 @@ jobs:
           # 验证构建结果
           if [ $MAKE_EXIT -eq 0 ] && [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/Image" ]; then
               echo "✅ Kernel Build Successful (内核构建成功)"
+
+              # ── 构建后配置校验 ──
+              echo "🔍 Verifying key config options... (校验关键配置选项)"
+              CONFIG_FILE="$KERNEL_SOURCE/out/.config"
+
+              # 校验 SUSFS 配置（SukiSU-Ultra 时）
+              if [ "$KSU" == "SukiSU-Ultra" ]; then
+                  grep -q "CONFIG_KSU_SUSFS=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_KSU_SUSFS=y" || echo "  ⚠️  CONFIG_KSU_SUSFS 未启用"
+                  grep -q "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_KSU_SUSFS_SPOOF_UNAME=y" || echo "  ⚠️  CONFIG_KSU_SUSFS_SPOOF_UNAME 未启用"
+              fi
+
+              # 校验 DroidSpaces 配置
+              if [ "$DROIDSPACES" == "enable" ]; then
+                  grep -q "CONFIG_NAMESPACES=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_NAMESPACES=y" || echo "  ⚠️  CONFIG_NAMESPACES 未启用"
+                  grep -q "CONFIG_VETH=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_VETH=y" || echo "  ⚠️  CONFIG_VETH 未启用"
+                  grep -q "CONFIG_TUN=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_TUN=y" || echo "  ⚠️  CONFIG_TUN 未启用"
+                  grep -q "CONFIG_OVERLAY_FS=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_OVERLAY_FS=y" || echo "  ⚠️  CONFIG_OVERLAY_FS 未启用"
+                  grep -q "CONFIG_ANDROID_PARANOID_NETWORK" "$CONFIG_FILE" && echo "  ⚠️  CONFIG_ANDROID_PARANOID_NETWORK 仍启用（容器联网可能异常）" || echo "  ✅ CONFIG_ANDROID_PARANOID_NETWORK 已禁用"
+              fi
+
+              # 校验 KPM 配置
+              if [ "$KPM" == "enable" ] && [ "$KSU" == "SukiSU-Ultra" ]; then
+                  grep -q "CONFIG_KPM=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_KPM=y" || echo "  ⚠️  CONFIG_KPM 未启用"
+              fi
           else
               echo "❌ Kernel build failure (内核构建失败)"
               echo "=== exit code: $MAKE_EXIT ==="
@@ -649,7 +767,7 @@ jobs:
           fi
           cd AnyKernel3
           rm -rf .git .github README.md
-          python3 "${{ github.workspace }}/.github/workflows/write_anykernel.py" anykernel.sh
+          python3 "${{ github.workspace }}/write_anykernel.py" anykernel.sh
           echo "anykernel.sh rewritten"
           mkdir -p kernels
           cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
