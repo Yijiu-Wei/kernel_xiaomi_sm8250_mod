@@ -30,6 +30,7 @@ no_block_display=1;
 userflavor=$(file_getprop /system/build.prop "ro.build.flavor");
 case $userflavor in
     missi*|qssi*) os=miui; os_string="HyperOS/MIUI ROM";;
+    crdroid_*) os=aosp; os_string="crDroid ROM";;
     *) os=aosp; os_string="AOSP ROM";;
 esac;
 ui_print "  -> $os_string is detected!";
