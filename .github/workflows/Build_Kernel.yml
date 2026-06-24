@@ -135,7 +135,8 @@ jobs:
           sudo apt-get install -y -o Dpkg::Options::="--force-overwrite" \
             bc binutils-dev bison build-essential ca-certificates ccache cmake curl file flex \
             git libelf-dev libssl-dev make ninja-build python3-dev texinfo u-boot-tools xz-utils \
-            zlib1g-dev libncurses-dev wget zip cpio python3 python3-pip tree jq
+            zlib1g-dev libncurses-dev wget zip cpio python3 python3-pip tree jq \
+            clang lld llvm
           echo "✅ Dependency installation complete (依赖安装完成)"
 
       - name: 🧹 Aggressive disk cleanup (深度清理磁盘)
@@ -188,7 +189,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.TOOLCHAIN_DIR }}
-          key: toolchain-clang-r547379-gcc-${{ hashFiles('**/*.sh') }}
+          key: toolchain-clang-${{ hashFiles('**/*.sh') }}
           restore-keys: |
             toolchain-clang-r547379-gcc-
             toolchain-
@@ -205,9 +206,19 @@ jobs:
           # 下载 Clang
           echo "正在下载 Clang..."
           cd "$TOOLCHAIN_DIR/clang"
-          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang-r547379.tar.gz
-          tar -xzf clang-r547379.tar.gz
-          rm clang-r547379.tar.gz
+          # 优先从 AOSP googlesource 下载 (之前构建成功过)
+          if wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" -O clang.tar.gz 2>/dev/null && tar -xzf clang.tar.gz 2>/dev/null; then
+            echo "Clang r547379 下载完成"
+          else
+            echo "AOSP Clang 不可用, 使用系统 Clang..."
+            rm -rf "$TOOLCHAIN_DIR/clang"/*
+            mkdir -p bin lib
+            ln -sf /usr/bin/clang bin/clang
+            ln -sf /usr/bin/clang++ bin/clang++
+            ln -sf /usr/bin/llvm-ar bin/llvm-ar
+            ln -sf /usr/bin/ld.lld bin/ld.lld
+          fi
+          rm -f clang.tar.gz
 
           # 下载 GCC
           echo "正在下载 GCC工具链..."
