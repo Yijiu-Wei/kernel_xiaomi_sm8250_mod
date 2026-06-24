@@ -577,8 +577,8 @@ jobs:
           fi
 
           # 开始构建
-          echo "🚀 Start building the kernel... (开始构建内核)"
-          make $MAKE_ARGS -j$(nproc --all) 2>&1 | tee build.log; MAKE_EXIT=${PIPESTATUS[0]}
+          echo "Building kernel (Image only, skip dtbs)..."
+          make $MAKE_ARGS -j$(nproc --all) Image 2>&1 | tee build.log; MAKE_EXIT=${PIPESTATUS[0]}
           echo "=== make exit code: $MAKE_EXIT ==="
 
           # 验证构建结果
