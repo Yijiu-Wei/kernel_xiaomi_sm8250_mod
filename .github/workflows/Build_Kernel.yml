@@ -114,6 +114,11 @@ jobs:
           echo "KernelSU变体: ${{ github.event.inputs.kernelsu_variant }} | KPM: ${{ github.event.inputs.kpm_enable }}"
           echo "Droidspaces: ${{ github.event.inputs.droidspaces_enable }} | 构建类型: ${{ github.event.inputs.build_type }}"
 
+      - name: 📥 Checkout workflow tools
+        uses: actions/checkout@v4
+        with:
+          path: build_tools
+
       - name: 🚀 Maximize build space (最大化构建空间)
         uses: easimon/maximize-build-space@master
         with:
@@ -206,22 +211,24 @@ jobs:
           mkdir -p "$TOOLCHAIN_DIR/gcc/gcc64"
           mkdir -p "$TOOLCHAIN_DIR/gcc/gcc32"
 
-          # 下载 Clang 14 (r450784d) — 4.19 内核兼容版本
-          echo "正在下载 Clang 14 (r450784d — 4.19 内核兼容版本)..."
+          # 使用系统 Clang (Ubuntu 24.04 自带 Clang 18+，兼容 4.19 内核)
+          echo "使用系统 Clang..."
           cd "$TOOLCHAIN_DIR/clang"
-          # 优先从 AOSP googlesource 下载
-          if wget -q "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r450784d.tar.gz" -O clang.tar.gz 2>/dev/null && tar -xzf clang.tar.gz 2>/dev/null; then
-            echo "Clang 14 (r450784d) 下载完成 — 4.19 兼容版本"
-          else
-            echo "AOSP Clang 不可用, 使用系统 Clang..."
-            rm -rf "$TOOLCHAIN_DIR/clang"/*
-            mkdir -p bin lib
-            ln -sf /usr/bin/clang bin/clang
-            ln -sf /usr/bin/clang++ bin/clang++
-            ln -sf /usr/bin/llvm-ar bin/llvm-ar
-            ln -sf /usr/bin/ld.lld bin/ld.lld
+          mkdir -p bin lib
+          for tool in clang clang++ llvm-ar ld.lld llvm-nm llvm-objcopy llvm-objdump llvm-strip; do
+            if [ -f "/usr/bin/$tool" ]; then
+              ln -sf "/usr/bin/$tool" "bin/$tool"
+              echo "  linked $tool"
+            fi
+          done
+          # 如果系统没有 llvm-ar 等工具，安装它们
+          if [ ! -f bin/llvm-ar ]; then
+            sudo apt-get install -y llvm 2>/dev/null || true
+            for tool in llvm-ar ld.lld llvm-nm llvm-objcopy; do
+              [ -f "/usr/bin/$tool" ] && ln -sf "/usr/bin/$tool" "bin/$tool" || true
+            done
           fi
-          rm -f clang.tar.gz
+          echo "系统 Clang 已就绪: $(bin/clang --version 2>/dev/null | head -1 || echo 'checking...')"
 
           # 下载 GCC
           echo "正在下载 GCC工具链..."
@@ -252,7 +259,7 @@ jobs:
           echo "⚙️ Configure KernelSU Variants: $KSU_VARIANT (配置 KernelSU 变体: $KSU_VARIANT)"
 
           if [ "$KSU_VARIANT" == "SukiSU-Ultra" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
+            curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
           elif [ "$KSU_VARIANT" == "KernelSU" ]; then
             curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
           elif [ "$KSU_VARIANT" == "RKSU" ]; then
@@ -280,7 +287,7 @@ jobs:
           # 4) SukiSU-Ultra 不使用旧版 #ifdef CONFIG_KSU 钩子 (它用 kprobe)
           # 去掉 4 个内核源码文件中的 #ifdef CONFIG_KSU 守卫, 避免未定义符号
           for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c; do
-            [ -f "$KERNEL_SOURCE/$f" ] && sed -i '/^#ifdef CONFIG_KSU$/,/^#endif$/{/^#ifdef CONFIG_KSU$/d;/^#endif$/d}' "$KERNEL_SOURCE/$f" && echo "Stripped KSU guards from $f"
+            [ -f "$KERNEL_SOURCE/$f" ] && python3 "$GITHUB_WORKSPACE/build_tools/.github/workflows/strip_ksu_guards.py" "$KERNEL_SOURCE/$f" && echo "Stripped KSU guards from $f"
           done
 
           echo "KSU config done"
@@ -465,8 +472,8 @@ jobs:
             -e LRU_GEN_ENABLED
           # 禁用模块签名 (KSU 需要加载未签名模块)
           scripts/config --file out/.config -d MODULE_SIG -d MODULE_SIG_FORCE -d MODULE_SIG_SHA512
-          # 禁用 USB PD 驱动 (crDroid 内核中 ps5169 符号缺失)
-          scripts/config --file out/.config -d TYPEC_UCSI -d USB_PD -d PD_ENGINE
+          # 禁用 USB PD 驱动 (ps5169 符号缺失)
+          scripts/config --file out/.config -d QPNP_USB_PDPHY -d USB_PD_POLICY
 
           # 根据系统类型修改配置
           if [ "$SYSTEM" == "MIUI" ]; then
@@ -767,7 +774,7 @@ jobs:
           fi
           cd AnyKernel3
           rm -rf .git .github README.md
-          python3 "${{ github.workspace }}/write_anykernel.py" anykernel.sh
+          python3 "$GITHUB_WORKSPACE/build_tools/.github/workflows/write_anykernel.py" anykernel.sh
           echo "anykernel.sh rewritten"
           mkdir -p kernels
           cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
