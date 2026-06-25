@@ -784,10 +784,10 @@ jobs:
           rm -rf "$WORKDIR/ak3_out"
           mkdir -p "$WORKDIR/ak3_out"
           cd "$WORKDIR/ak3_out"
-          git clone --depth=1 --single-branch https://github.com/liyafe1997/AnyKernel3.git 2>&1 | tail -3
+          git clone --depth=1 --single-branch https://github.com/osm0sis/AnyKernel3.git 2>&1 | tail -3
           if [ ! -d AnyKernel3 ]; then
             rm -rf AnyKernel3
-            git clone --depth=1 --single-branch https://github.com/osm0sis/AnyKernel3.git 2>&1 | tail -3
+            git clone --depth=1 --single-branch https://github.com/liyafe1997/AnyKernel3.git 2>&1 | tail -3
           fi
           cd AnyKernel3
           rm -rf .git .github README.md
