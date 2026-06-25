@@ -298,12 +298,23 @@ jobs:
 
           echo "KSU config done"
 
-          # 5) ksu_input_hook stub for legacy compat
+          # 5) ksu_input_hook stub
           for f in "$KERNEL_SOURCE/KernelSU/kernel/core/init.c" "$KERNEL_SOURCE/KernelSU/kernel/init.c"; do
             if [ -f "$f" ] && ! grep -q "ksu_input_hook_stub" "$f"; then
-              printf '\n/* ksu_input_hook_stub */\nbool ksu_input_hook __read_mostly = false;\n' >> "$f" && echo "Added ksu_input_hook stub" && break
+              printf '\n/* ksu_input_hook_stub */\nbool ksu_input_hook __read_mostly = false;\n' >> "$f"
+              echo "Added ksu_input_hook stub" && break
             fi
           done
+          # 6) Stub for DP symbols (has_dp_flag, ps5169_cfg_usb)
+          STUB="$KERNEL_SOURCE/include/linux/usb/usbpd_stub.h"
+          if [ ! -f "$STUB" ]; then
+            echo '#ifndef __USBPD_STUB_H' > "$STUB"
+            echo '#define __USBPD_STUB_H' >> "$STUB"
+            echo 'bool has_dp_flag __attribute__((weak)) = false;' >> "$STUB"
+            echo 'int ps5169_cfg_usb __attribute__((weak)) = 0;' >> "$STUB"
+            echo '#endif' >> "$STUB"
+            echo "Created DP symbol stubs"
+          fi
           echo "KSU patches done"
 
       # ── DroidSpaces 内核补丁 ──
