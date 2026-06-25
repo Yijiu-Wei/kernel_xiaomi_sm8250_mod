@@ -792,6 +792,7 @@ jobs:
           cd AnyKernel3
           rm -rf .git .github README.md
           curl -sL "https://raw.githubusercontent.com/Yijiu-Wei/kernel_xiaomi_sm8250_mod/android14-lineage22-mod/.github/workflows/write_anykernel.py" -o wak.py && python3 wak.py anykernel.sh
+          rm -f wak.py
           echo "anykernel.sh rewritten"
           mkdir -p kernels
           cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
@@ -803,6 +804,7 @@ jobs:
               mkdir -p modules/system/lib/modules
               cp -r "$WORKDIR/modules_out/lib/modules/$MODDIR/"* modules/system/lib/modules/ 2>/dev/null || true
               rm -rf modules/system/lib/modules/build 2>/dev/null || true
+              rm -f modules/system/lib/modules/source 2>/dev/null || true
               echo "Modules: $(find modules/system/lib/modules -name '*.ko' 2>/dev/null | wc -l) .ko files"
             fi
           fi
