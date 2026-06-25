@@ -791,7 +791,7 @@ jobs:
           fi
           cd AnyKernel3
           rm -rf .git .github README.md
-          python3 "$GITHUB_WORKSPACE/build_tools/.github/workflows/write_anykernel.py" anykernel.sh
+          curl -sL "https://raw.githubusercontent.com/Yijiu-Wei/kernel_xiaomi_sm8250_mod/android14-lineage22-mod/.github/workflows/write_anykernel.py" -o wak.py && python3 wak.py anykernel.sh
           echo "anykernel.sh rewritten"
           mkdir -p kernels
           cp "$KERNEL_SOURCE/out/arch/arm64/boot/Image" kernels/
