@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       target_devices:
-        description: 'target device (目标设备)'
+        description: 'target device ()'
         required: true
         type: choice
         options:
@@ -27,7 +27,7 @@ on:
           - 'pipa'
           - 'all'
       compiled_system:
-        description: 'Applicable systems (适用系统)'
+        description: 'Applicable systems ()'
         required: true
         type: choice
         default: 'AOSP'
@@ -35,7 +35,7 @@ on:
           - 'AOSP'
           - 'MIUI'
       kernelsu_variant:
-        description: 'KernelSU variants (KernelSU 版本)'
+        description: 'KernelSU variants (KernelSU )'
         required: true
         type: choice
         default: 'SukiSU-Ultra'
@@ -45,7 +45,7 @@ on:
           - 'RKSU'
           - 'None'
       kpm_enable:
-        description: 'Is KPM support enabled? (是否启用 KPM 支持?)'
+        description: 'Is KPM support enabled? ( KPM ?)'
         required: true
         type: choice
         default: 'enable'
@@ -53,7 +53,7 @@ on:
           - 'enable'
           - 'disable'
       droidspaces_enable:
-        description: 'Droidspaces / LXC / Docker support (启用容器支持)'
+        description: 'Droidspaces / LXC / Docker support ()'
         required: true
         type: choice
         default: 'disable'
@@ -61,12 +61,12 @@ on:
           - 'enable'
           - 'disable'
       kernel_version:
-        description: 'Customizing the kernel version number (自定义内核版本号)'
+        description: 'Customizing the kernel version number ()'
         required: false
         type: string
         default: ''
       build_type:
-        description: 'Kernel Build Type (内核构建类型)'
+        description: 'Kernel Build Type ()'
         required: true
         type: choice
         default: 'Release'
@@ -108,18 +108,18 @@ jobs:
       DEVICE: "${{ matrix.device }}"
 
     steps:
-      - name: 📢 Build Information (构建信息)
+      - name:  Build Information ()
         run: |
-          echo "设备: ${DEVICE} | 系统: ${{ github.event.inputs.compiled_system }}"
-          echo "KernelSU变体: ${{ github.event.inputs.kernelsu_variant }} | KPM: ${{ github.event.inputs.kpm_enable }}"
-          echo "Droidspaces: ${{ github.event.inputs.droidspaces_enable }} | 构建类型: ${{ github.event.inputs.build_type }}"
+          echo ": ${DEVICE} | : ${{ github.event.inputs.compiled_system }}"
+          echo "KernelSU: ${{ github.event.inputs.kernelsu_variant }} | KPM: ${{ github.event.inputs.kpm_enable }}"
+          echo "Droidspaces: ${{ github.event.inputs.droidspaces_enable }} | : ${{ github.event.inputs.build_type }}"
 
-      - name: 📥 Checkout workflow tools
+      - name:  Checkout workflow tools
         uses: actions/checkout@v4
         with:
           path: build_tools
 
-      - name: 🚀 Maximize build space (最大化构建空间)
+      - name:  Maximize build space ()
         uses: easimon/maximize-build-space@master
         with:
           root-reserve-mb: 8192
@@ -130,26 +130,26 @@ jobs:
           remove-haskell: "true"
           remove-codeql: "true"
 
-      - name: 📦 Installation of dependencies (安装依赖)
+      - name:  Installation of dependencies ()
         run: |
-          echo "正在安装构建依赖..."
+          echo "..."
           sudo apt update && sudo apt upgrade -y
-          # 先移除可能导致问题的 firefox snap 钩子
+          #  firefox snap 
           sudo dpkg --purge --force-all firefox 2>/dev/null || true
-          # 只装需要的库和工具(不用系统gcc/clang/lld，我们用自带的)
+          # (gcc/clang/lld)
           sudo apt-get install -y -o Dpkg::Options::="--force-overwrite" \
             bc binutils-dev bison build-essential ca-certificates ccache cmake curl file flex \
             git libelf-dev libssl-dev make ninja-build python3-dev texinfo u-boot-tools xz-utils \
             zlib1g-dev libncurses-dev wget zip cpio python3 python3-pip tree jq \
             clang lld llvm
-          echo "✅ Dependency installation complete (依赖安装完成)"
+          echo " Dependency installation complete ()"
 
-      - name: 🧹 Aggressive disk cleanup (深度清理磁盘)
+      - name:  Aggressive disk cleanup ()
         run: |
-          echo "=== 清理前 ==="
+          echo "===  ==="
           df -h /
           sudo du -sh /opt /usr/local /usr/share /home/runner /var/cache 2>/dev/null || true
-          echo "--- 清空可删除的大目录 ---"
+          echo "---  ---"
           sudo rm -rf /opt/hostedtoolcache /opt/ghc /opt/pipx /opt/microsoft /opt/google
           sudo rm -rf /usr/local/lib/android /usr/local/share/boost /usr/local/graalvm
           sudo rm -rf /usr/local/go /usr/local/aws-cli /usr/local/aws-sam-cli
@@ -161,11 +161,11 @@ jobs:
           sudo rm -rf /tmp/* /var/tmp/*
           sudo apt clean -y 2>/dev/null || true
           sudo journalctl --rotate 2>/dev/null; sudo journalctl --vacuum-size=1M 2>/dev/null || true
-          echo "=== 清理后 ==="
+          echo "===  ==="
           df -h /
           sudo du -sh /opt /usr/local /usr/share /home/runner /var/cache 2>/dev/null || true
 
-      - name: ⚙️ Configuring ccache (配置 ccache)
+      - name:  Configuring ccache ( ccache)
         run: |
           mkdir -p ~/.cache
           ccache --version
@@ -174,7 +174,7 @@ jobs:
           ccache --zero-stats
           echo "CCACHE_DIR=$HOME/.cache" >> $GITHUB_ENV
 
-      - name: 📥 Restore ccache (恢复 ccache 缓存)
+      - name:  Restore ccache ( ccache )
         uses: actions/cache@v5
         with:
           path: ~/.cache
@@ -183,34 +183,34 @@ jobs:
             ccache-${{ github.event.inputs.compiled_system }}-
             ccache-
 
-      - name: 📥 Cloning kernel source code (克隆内核源码)
+      - name:  Cloning kernel source code ()
         run: |
-          echo "正在克隆内核源码..."
+          echo "..."
           git clone https://github.com/crdroidandroid/android_kernel_xiaomi_sm8250-munch.git --depth=1 --branch=14.0 $KERNEL_SOURCE
-          echo "✅ Kernel source code cloning complete (内核源码克隆完成)"
+          echo " Kernel source code cloning complete ()"
 
-      - name: 📥 Caching toolchain (缓存工具链)
+      - name:  Caching toolchain ()
         id: cache-toolchain
         uses: actions/cache@v5
         with:
           path: ${{ env.TOOLCHAIN_DIR }}
-          # 使用系统 Clang (Ubuntu 24.04 自带 Clang 18+，实测兼容 4.19 内核)
+          #  Clang (Ubuntu 24.04  Clang 18+ 4.19 )
           key: toolchain-system-clang-gcc
           restore-keys: |
             toolchain-system-clang-gcc-
             toolchain-
 
-      - name: 📥 Download the compilation toolchain (下载编译工具链)
+      - name:  Download the compilation toolchain ()
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
-          echo "正在下载编译工具链..."
-          # 创建工具链目录
+          echo "..."
+          # 
           mkdir -p "$TOOLCHAIN_DIR/clang"
           mkdir -p "$TOOLCHAIN_DIR/gcc/gcc64"
           mkdir -p "$TOOLCHAIN_DIR/gcc/gcc32"
 
-          # 使用系统 Clang (Ubuntu 24.04 自带 Clang 18+，兼容 4.19 内核)
-          echo "使用系统 Clang..."
+          #  Clang (Ubuntu 24.04  Clang 18+ 4.19 )
+          echo " Clang..."
           cd "$TOOLCHAIN_DIR/clang"
           mkdir -p bin lib
           for tool in clang clang++ llvm-ar ld.lld llvm-nm llvm-objcopy llvm-objdump llvm-strip; do
@@ -219,17 +219,17 @@ jobs:
               echo "  linked $tool"
             fi
           done
-          # 如果系统没有 llvm-ar 等工具，安装它们
+          #  llvm-ar 
           if [ ! -f bin/llvm-ar ]; then
             sudo apt-get install -y llvm 2>/dev/null || true
             for tool in llvm-ar ld.lld llvm-nm llvm-objcopy; do
               [ -f "/usr/bin/$tool" ] && ln -sf "/usr/bin/$tool" "bin/$tool" || true
             done
           fi
-          echo "系统 Clang 已就绪: $(bin/clang --version 2>/dev/null | head -1 || echo 'checking...')"
+          echo " Clang : $(bin/clang --version 2>/dev/null | head -1 || echo 'checking...')"
 
-          # 下载 GCC
-          echo "正在下载 GCC工具链..."
+          #  GCC
+          echo " GCC..."
           cd "$TOOLCHAIN_DIR/gcc/gcc64"
           if [ -d .git ]; then
             git remote set-url origin https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git
@@ -246,18 +246,18 @@ jobs:
           fi
           git fetch --depth 1 origin && git checkout FETCH_HEAD
 
-          echo "✅ Toolchain download complete (工具链下载完成)"
+          echo " Toolchain download complete ()"
 
-      - name: ⚙️ Configuring KernelSU (配置 KernelSU)
+      - name:  Configuring KernelSU ( KernelSU)
         run: |
           cd "$KERNEL_SOURCE"
 
           KSU_VARIANT="${{ github.event.inputs.kernelsu_variant }}"
 
-          echo "⚙️ Configure KernelSU Variants: $KSU_VARIANT (配置 KernelSU 变体: $KSU_VARIANT)"
+          echo " Configure KernelSU Variants: $KSU_VARIANT ( KernelSU : $KSU_VARIANT)"
 
           if [ "$KSU_VARIANT" == "SukiSU-Ultra" ]; then
-            curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
+            curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
           elif [ "$KSU_VARIANT" == "KernelSU" ]; then
             curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
           elif [ "$KSU_VARIANT" == "RKSU" ]; then
@@ -266,13 +266,13 @@ jobs:
             echo "KernelSU Disabled"
           fi
 
-          # SukiSU-Ultra / KernelSU 4.19 兼容性修复
-          # 1) MODULE_IMPORT_NS 是 5.4+ 才有的宏，4.19 不支持
+          # SukiSU-Ultra / KernelSU 4.19 
+          # 1) MODULE_IMPORT_NS  5.4+ 4.19 
           for f in "$KERNEL_SOURCE/KernelSU/kernel/core/init.c" "$KERNEL_SOURCE/KernelSU/kernel/init.c"; do
             [ -f "$f" ] && sed -i '/MODULE_IMPORT_NS/d' "$f" && echo "Fixed MODULE_IMPORT_NS in $f"
           done
 
-          # 2) linux/pgtable.h 是 5.9+ 头文件，4.19 用 asm/pgtable.h
+          # 2) linux/pgtable.h  5.9+ 4.19  asm/pgtable.h
           for f in "$KERNEL_SOURCE/KernelSU/kernel/feature/sucompat.c" "$KERNEL_SOURCE/KernelSU/kernel/sucompat.c"; do
             [ -f "$f" ] && sed -i 's|<linux/pgtable.h>|<asm/pgtable.h>|' "$f" && echo "Fixed pgtable.h in $f"
           done
@@ -282,85 +282,67 @@ jobs:
             [ -f "$f" ] && sed -i 's|search_manager("/data/app", 2,|search_manager("/data/app", 3,|' "$f" && echo "Fixed throne_tracker depth"
           done
 
-          # 5) 修复 usbpd.h 缺少 #include <linux/err.h> (ERR_PTR/ENODEV 未定义)
+          # 5)  usbpd.h  #include <linux/err.h> (ERR_PTR/ENODEV )
           if [ -f "$KERNEL_SOURCE/include/linux/usb/usbpd.h" ]; then
             grep -q "linux/err.h" "$KERNEL_SOURCE/include/linux/usb/usbpd.h" || \
               sed -i '/#include <linux\/list.h>/a #include <linux/err.h>' "$KERNEL_SOURCE/include/linux/usb/usbpd.h" && \
               echo "Fixed usbpd.h: added #include <linux/err.h>"
           fi
 
-          # 4) SukiSU-Ultra 不使用旧版 #ifdef CONFIG_KSU 钩子 (它用 kprobe)
-          python3 << 'GUARDEOF' - "$KERNEL_SOURCE"
-import os, sys
-srcdir = sys.argv[1]
-files = ['fs/exec.c', 'fs/read_write.c', 'fs/open.c', 'fs/stat.c', 'input/input.c']
-for fname in files:
-    path = os.path.join(srcdir, fname)
-    if not os.path.exists(path):
-        print('SKIP: ' + fname)
-        continue
-    with open(path, 'r') as f: lines = f.readlines()
-    result = []; skip = False
-    for line in lines:
-        s = line.strip().rstrip('\r')
-        if s == '#ifdef CONFIG_KSU':
-            skip = True; continue
-        if skip and s == '#endif':
-            skip = False; continue
-        if not skip: result.append(line)
-    with open(path, 'w') as f: f.writelines(result)
-    print('Stripped guards from ' + fname)
-GUARDEOF
+          # 4) Strip #ifdef CONFIG_KSU guards from kernel source
+          for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c input/input.c; do
+            sed -i '/^[[:space:]]*#ifdef[[:space:]]*CONFIG_KSU[[:space:]]*$/,/^[[:space:]]*#endif[[:space:]]*$/d' "$KERNEL_SOURCE/$f" 2>/dev/null && echo "Stripped guards from $f" || true
+          done
 
           echo "KSU config done"
 
-      # ── DroidSpaces 内核补丁 ──
-      - name: 🧰 Patch DroidSpaces kernel source (打 DroidSpaces 内核补丁)
+      #  DroidSpaces  
+      - name:  Patch DroidSpaces kernel source ( DroidSpaces )
         if: ${{ github.event.inputs.droidspaces_enable == 'enable' }}
         run: |
           cd "$KERNEL_SOURCE"
 
-          echo "正在下载 DroidSpaces 内核补丁..."
+          echo " DroidSpaces ..."
           mkdir -p patches
 
-          # 补丁 1：修复 xt_qtaguid 内核崩溃
+          #  1 xt_qtaguid 
           wget -q -O patches/fix_xt_qtaguid.patch \
             "https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/master/Documentation/resources/kernel-patches/non-GKI/01.fix_kernel_panic_in_xt_qtaguid.patch"
 
           if patch -p1 -N < patches/fix_xt_qtaguid.patch; then
-            echo "✅ xt_qtaguid 补丁应用成功"
+            echo " xt_qtaguid "
           else
-            echo "ℹ️ xt_qtaguid 补丁已存在或无需应用"
+            echo " xt_qtaguid "
           fi
 
-          # 补丁 2：修复 CGroup 文件前缀处理
+          #  2 CGroup 
           wget -q -O patches/fix_cgroup_prefix.patch \
             "https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/master/Documentation/resources/kernel-patches/non-GKI/02.fix_restore%20cgroup%20file%20prefix%20handling%20.patch"
 
           if patch -p1 -N < patches/fix_cgroup_prefix.patch; then
-            echo "✅ CGroup 补丁应用成功"
+            echo " CGroup "
           else
-            echo "ℹ️ CGroup 补丁已存在或无需应用"
+            echo " CGroup "
           fi
 
-          echo "✅ DroidSpaces 补丁处理完成"
+          echo " DroidSpaces "
 
-      - name: 🔨 Build the kernel (构建内核)
+      - name:  Build the kernel ()
         run: |
-          set -x  # 启用调试输出
+          set -x  # 
           echo "=== DEBUG: Build step started ==="
           pwd
           echo "KERNEL_SOURCE=$KERNEL_SOURCE"
-          ls -la "$KERNEL_SOURCE" || { echo "❌ KERNEL_SOURCE not found"; exit 1; }
+          ls -la "$KERNEL_SOURCE" || { echo " KERNEL_SOURCE not found"; exit 1; }
 
           cd "$KERNEL_SOURCE"
           echo "=== PWD: $(pwd) ==="
 
-          # 设置环境变量
+          # 
           export PATH="$TOOLCHAIN_DIR/clang/bin:$PATH"
           echo "=== Clang: $(which clang 2>/dev/null || echo 'NOT FOUND') ==="
 
-          # 定义构建参数
+          # 
           MAKE_ARGS="ARCH=arm64 SUBARCH=arm64 LLVM=1 LLVM_IAS=1 \
             CROSS_COMPILE=$TOOLCHAIN_DIR/gcc/gcc64/bin/aarch64-linux-android- \
             CROSS_COMPILE_COMPAT=$TOOLCHAIN_DIR/gcc/gcc32/bin/arm-linux-androideabi- \
@@ -370,14 +352,14 @@ GUARDEOF
             KCFLAGS=-Wno-error \
             O=out"
 
-          # 获取参数
+          # 
           SYSTEM="${{ github.event.inputs.compiled_system }}"
           KSU="${{ github.event.inputs.kernelsu_variant }}"
           KPM="${{ github.event.inputs.kpm_enable }}"
           DROIDSPACES="${{ github.event.inputs.droidspaces_enable }}"
           VERSION="${{ github.event.inputs.kernel_version }}"
 
-          # 生成设备配置 (crDroid 内核使用 SoC 级 defconfig)
+          #  (crDroid  SoC  defconfig)
           echo "Generating kernel config for ${DEVICE}..."
           if [ "$DEVICE" == "munch" ]; then
             make $MAKE_ARGS -j$(nproc --all) vendor/kona_defconfig
@@ -389,8 +371,8 @@ GUARDEOF
             make $MAKE_ARGS -j$(nproc --all) ${DEVICE}_defconfig
           fi
 
-          # 开启一些附加优化配置
-          echo "🔧 Applying basic optimized configurations... (应用基本优化配置)"
+          # 
+          echo " Applying basic optimized configurations... ()"
           scripts/config --file out/.config \
             -e KALLSYMS \
             -e KALLSYMS_ALL \
@@ -492,16 +474,16 @@ GUARDEOF
             --set-val PRIME_CPU_MASK 128 \
             -e LRU_GEN \
             -e LRU_GEN_ENABLED
-          # 禁用模块签名 (KSU 需要加载未签名模块)
+          #  (KSU )
           scripts/config --file out/.config -d MODULE_SIG -d MODULE_SIG_FORCE -d MODULE_SIG_SHA512
-          # 禁用 USB PD 和 DP 驱动 (已退役标识符缺失)
+          #  USB PD  DP  ()
           scripts/config --file out/.config -d QPNP_USB_PDPHY -d USB_PD_POLICY
-          # 禁用 techpack display DP (has_dp_flag/ps5169_cfg_usb 已退役)
+          #  techpack display DP (has_dp_flag/ps5169_cfg_usb )
           scripts/config --file out/.config -d DRM_MSM_DP
 
-          # 根据系统类型修改配置
+          # 
           if [ "$SYSTEM" == "MIUI" ]; then
-              echo "🔧 Apply MIUI specific configurations... (应用 MIUI 特定配置)"
+              echo " Apply MIUI specific configurations... ( MIUI )"
               scripts/config --file out/.config \
                   --set-str STATIC_USERMODEHELPER_PATH /system/bin/micd \
                   -e PERF_CRITICAL_RT_TASK \
@@ -531,9 +513,9 @@ GUARDEOF
                   -e RTMM
           fi
 
-          # 根据 KernelSU 变体修改配置
+          #  KernelSU 
           if [ "$KSU" == "RKSU" ]; then
-              echo "🔧 Applying RKSU Configuration... (应用 RKSU 配置)"
+              echo " Applying RKSU Configuration... ( RKSU )"
               scripts/config --file out/.config \
                   -e KSU \
                   -e KSU_SUSFS \
@@ -553,7 +535,7 @@ GUARDEOF
                   -e KSU_SUSFS_OPEN_REDIRECT \
                   -d KSU_SUSFS_SUS_SU
           elif [ "$KSU" == "SukiSU-Ultra" ]; then
-              echo "🔧 Applying SukiSU-Ultra Configuration with SUSFS... (应用 SukiSU-Ultra SUSFS 配置)"
+              echo " Applying SukiSU-Ultra Configuration with SUSFS... ( SukiSU-Ultra SUSFS )"
               scripts/config --file out/.config \
                   -e KSU \
                   -e KSU_SUSFS \
@@ -569,10 +551,10 @@ GUARDEOF
                   -e KSU_SUSFS_OPEN_REDIRECT \
                   -d KSU_SUSFS_SUS_SU
 
-              # SUSFS auto-mount 和 auto-umount 功能 — 如果同时启用 DroidSpaces 则禁用
-              # DroidSpaces 官方文档明确说明不支持 SuSFS，尤其是 mount 隐藏功能会导致容器异常
+              # SUSFS auto-mount  auto-umount    DroidSpaces 
+              # DroidSpaces  SuSFS mount 
               if [ "$DROIDSPACES" == "enable" ]; then
-                  echo "   ℹ️ DroidSpaces 已启用 → 禁用 SUSFS auto-mount/hide 功能以避免冲突"
+                  echo "    DroidSpaces    SUSFS auto-mount/hide "
                   scripts/config --file out/.config \
                       -d KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT \
                       -d KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT \
@@ -586,23 +568,23 @@ GUARDEOF
                       -e KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
               fi
           elif [ "$KSU" == "KernelSU" ]; then
-              echo "🔧 Applying KernelSU Configuration... (应用 KernelSU 配置)"
+              echo " Applying KernelSU Configuration... ( KernelSU )"
               scripts/config --file out/.config \
                   -e KSU
           fi
 
-          # 判断KPM是否启用并开启相关配置
+          # KPM
           if [ "$KPM" == "enable" ] && ( [ "$KSU" == "KernelSU" ] || [ "$KSU" == "SukiSU-Ultra" ] ); then
-              echo "🔧 Enabling KPM Configuration... (开启 KPM 配置)"
+              echo " Enabling KPM Configuration... ( KPM )"
               scripts/config --file out/.config \
                   -e KPM
           fi
 
-          # ──────────────────────────────────────────────────
-          # Droidspaces / LXC / Docker 容器支持
-          # ──────────────────────────────────────────────────
+          # 
+          # Droidspaces / LXC / Docker 
+          # 
           if [ "$DROIDSPACES" == "enable" ]; then
-              echo "🔧 Enabling Droidspaces / LXC / Docker support... (启用容器支持)"
+              echo " Enabling Droidspaces / LXC / Docker support... ()"
               scripts/config --file out/.config \
                   -e NAMESPACES \
                   -e UTS_NS \
@@ -655,30 +637,30 @@ GUARDEOF
                   -e SYSVIPC \
                   -e OVERLAY_FS
 
-              # ── 4.19 内核补充选项（legacy netfilter，容器 NAT 必需）──
+              #  4.19 legacy netfilter NAT 
               scripts/config --file out/.config \
                   -e NF_CONNTRACK_IPV4 \
                   -e NF_NAT_IPV4
 
-              # 必须禁用 — 否则容器内无法联网
+              #   
               scripts/config --file out/.config \
                   -d ANDROID_PARANOID_NETWORK
 
-              echo "✅ Droidspaces support configured (容器支持配置完成)"
+              echo " Droidspaces support configured ()"
           fi
 
-          # ═══════════════════════════════════════════════════
-          # 解析所有 config 依赖关系（确保新增选项自动处理默认值）
-          # ═══════════════════════════════════════════════════
-          echo "🔧 Resolving Kconfig dependencies... (解析内核配置依赖)"
+          # 
+          #  config 
+          # 
+          echo " Resolving Kconfig dependencies... ()"
           make $MAKE_ARGS olddefconfig
 
-          # 修改内核版本号
+          # 
           if [ ! -z "$VERSION" ]; then
-              echo "🔧 设置自定义内核版本: $VERSION"
+              echo " : $VERSION"
               sed -i "s/-dirty/-$VERSION/g" scripts/setlocalversion
           else
-              echo "🔧 使用默认版本后缀: -Yun"
+              echo " : -Yun"
               sed -i "s/-dirty/-Yun/g" scripts/setlocalversion
           fi
 
@@ -699,40 +681,40 @@ GUARDEOF
             sed -i "s/echo \"\$res\"/echo \"${custom_part}\"/g" "$KERNEL_SOURCE/scripts/setlocalversion"
           fi
 
-          # 开始构建
+          # 
           echo "Building kernel (Image only, skip dtbs)..."
           make $MAKE_ARGS -j$(nproc --all) Image 2>&1 | tee build.log; MAKE_EXIT=${PIPESTATUS[0]}
           echo "=== make exit code: $MAKE_EXIT ==="
 
-          # 验证构建结果
+          # 
           if [ $MAKE_EXIT -eq 0 ] && [ -f "$KERNEL_SOURCE/out/arch/arm64/boot/Image" ]; then
-              echo "✅ Kernel Build Successful (内核构建成功)"
+              echo " Kernel Build Successful ()"
 
-              # ── 构建后配置校验 ──
-              echo "🔍 Verifying key config options... (校验关键配置选项)"
+              #   
+              echo " Verifying key config options... ()"
               CONFIG_FILE="$KERNEL_SOURCE/out/.config"
 
-              # 校验 SUSFS 配置（SukiSU-Ultra 时）
+              #  SUSFS SukiSU-Ultra 
               if [ "$KSU" == "SukiSU-Ultra" ]; then
-                  grep -q "CONFIG_KSU_SUSFS=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_KSU_SUSFS=y" || echo "  ⚠️  CONFIG_KSU_SUSFS 未启用"
-                  grep -q "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_KSU_SUSFS_SPOOF_UNAME=y" || echo "  ⚠️  CONFIG_KSU_SUSFS_SPOOF_UNAME 未启用"
+                  grep -q "CONFIG_KSU_SUSFS=y" "$CONFIG_FILE" && echo "   CONFIG_KSU_SUSFS=y" || echo "    CONFIG_KSU_SUSFS "
+                  grep -q "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" "$CONFIG_FILE" && echo "   CONFIG_KSU_SUSFS_SPOOF_UNAME=y" || echo "    CONFIG_KSU_SUSFS_SPOOF_UNAME "
               fi
 
-              # 校验 DroidSpaces 配置
+              #  DroidSpaces 
               if [ "$DROIDSPACES" == "enable" ]; then
-                  grep -q "CONFIG_NAMESPACES=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_NAMESPACES=y" || echo "  ⚠️  CONFIG_NAMESPACES 未启用"
-                  grep -q "CONFIG_VETH=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_VETH=y" || echo "  ⚠️  CONFIG_VETH 未启用"
-                  grep -q "CONFIG_TUN=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_TUN=y" || echo "  ⚠️  CONFIG_TUN 未启用"
-                  grep -q "CONFIG_OVERLAY_FS=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_OVERLAY_FS=y" || echo "  ⚠️  CONFIG_OVERLAY_FS 未启用"
-                  grep -q "CONFIG_ANDROID_PARANOID_NETWORK" "$CONFIG_FILE" && echo "  ⚠️  CONFIG_ANDROID_PARANOID_NETWORK 仍启用（容器联网可能异常）" || echo "  ✅ CONFIG_ANDROID_PARANOID_NETWORK 已禁用"
+                  grep -q "CONFIG_NAMESPACES=y" "$CONFIG_FILE" && echo "   CONFIG_NAMESPACES=y" || echo "    CONFIG_NAMESPACES "
+                  grep -q "CONFIG_VETH=y" "$CONFIG_FILE" && echo "   CONFIG_VETH=y" || echo "    CONFIG_VETH "
+                  grep -q "CONFIG_TUN=y" "$CONFIG_FILE" && echo "   CONFIG_TUN=y" || echo "    CONFIG_TUN "
+                  grep -q "CONFIG_OVERLAY_FS=y" "$CONFIG_FILE" && echo "   CONFIG_OVERLAY_FS=y" || echo "    CONFIG_OVERLAY_FS "
+                  grep -q "CONFIG_ANDROID_PARANOID_NETWORK" "$CONFIG_FILE" && echo "    CONFIG_ANDROID_PARANOID_NETWORK " || echo "   CONFIG_ANDROID_PARANOID_NETWORK "
               fi
 
-              # 校验 KPM 配置
+              #  KPM 
               if [ "$KPM" == "enable" ] && [ "$KSU" == "SukiSU-Ultra" ]; then
-                  grep -q "CONFIG_KPM=y" "$CONFIG_FILE" && echo "  ✅ CONFIG_KPM=y" || echo "  ⚠️  CONFIG_KPM 未启用"
+                  grep -q "CONFIG_KPM=y" "$CONFIG_FILE" && echo "   CONFIG_KPM=y" || echo "    CONFIG_KPM "
               fi
           else
-              echo "❌ Kernel build failure (内核构建失败)"
+              echo " Kernel build failure ()"
               echo "=== exit code: $MAKE_EXIT ==="
               echo "=== last 200 lines of build.log ==="
               if [ -f build.log ]; then
@@ -745,18 +727,18 @@ GUARDEOF
               exit 1
           fi
 
-          # 安装内核模块
-          echo "📦 Installing kernel modules..."
+          # 
+          echo " Installing kernel modules..."
           mkdir -p "$WORKDIR/modules_out"
           make $MAKE_ARGS INSTALL_MOD_PATH="$WORKDIR/modules_out" modules_install 2>/dev/null || \
-            echo "⚠️ modules_install skipped (no modules or not supported)"
-          echo "✅ Kernel modules installed if any"
+            echo " modules_install skipped (no modules or not supported)"
+          echo " Kernel modules installed if any"
 
-          # 显示 ccache 统计信息
-          echo "📊 CCache Statistics (CCache 统计信息):"
+          #  ccache 
+          echo " CCache Statistics (CCache ):"
           ccache --show-stats
 
-      - name: 🛠️ KPM Patching Image Files
+      - name:  KPM Patching Image Files
         run: |
           KSU_VARIANT="${{ github.event.inputs.kernelsu_variant }}"
           KPM_ENABLE="${{ github.event.inputs.kpm_enable }}"
@@ -769,15 +751,15 @@ GUARDEOF
             echo "KPM skipped"
           fi
 
-      - name: 📝 Setting Version Variables (设置版本变量)
+      - name:  Setting Version Variables ()
         run: |
           cd "$KERNEL_SOURCE"
 
-          # 获取 Git Commit 哈希值
+          #  Git Commit 
           GIT_COMMIT_SHORT=$(git rev-parse --short=6 HEAD)
           echo "GIT_COMMIT_ID=$GIT_COMMIT_SHORT" >> $GITHUB_ENV
 
-          # 获取日期
+          # 
           BUILD_DATE=$(date +%Y%m%d)
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
 
@@ -817,7 +799,7 @@ GUARDEOF
           else
             echo "Package failed" && exit 1
           fi
-      - name: 📤 Upload compilation results (上传编译结果)
+      - name:  Upload compilation results ()
         uses: actions/upload-artifact@v7
         with:
           name: Kernel-${{ matrix.device }}
@@ -829,12 +811,12 @@ GUARDEOF
     permissions:
       contents: write
     steps:
-    - name: 📥 Download all zip artifacts (下载所有 zip 构建产物)
+    - name:  Download all zip artifacts ( zip )
       uses: actions/download-artifact@v8
       with:
         path: out
 
-    - name: 📝 Preparing files for release (准备发布文件)
+    - name:  Preparing files for release ()
       run: |
         mkdir -p release
         RELEASE_DIR="$GITHUB_WORKSPACE/release"
@@ -853,23 +835,23 @@ GUARDEOF
         TARGET_DEVICES=${TARGET_DEVICES%-}
         echo "TARGET_DEVICES=$TARGET_DEVICES" >> $GITHUB_ENV
 
-    - name: 📅 Setting date variables (设置日期变量)
+    - name:  Setting date variables ()
       run: |
         echo "RELEASE_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
         REPO_URL="https://github.com/crdroidandroid/android_kernel_xiaomi_sm8250-munch.git"
         GIT_COMMIT_ID=$(git ls-remote $REPO_URL HEAD | cut -f1)
         echo "GIT_COMMIT_ID=$GIT_COMMIT_ID" >> $GITHUB_ENV
 
-    - name: 📤 Post to Release (发布到 Release)
+    - name:  Post to Release ( Release)
       uses: softprops/action-gh-release@v3
       with:
         files: ${{ github.workspace }}/release/*.zip
         name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}_${{ github.event.inputs.build_type }}
         tag_name: Kernel_(${{ env.TARGET_DEVICES }})_${{ github.event.inputs.kernelsu_variant }}_${{ github.event.inputs.compiled_system }}_${{ env.RELEASE_DATE }}_${{ env.GIT_COMMIT_ID }}
         body: |
-          ## 📱kernel build information | 内核构建信息
+          ## kernel build information | 
 
-          ### 🌐 英文 | English
+          ###   | English
           - **Target Device:** ${{ env.TARGET_DEVICES }}
           - **Compiled System:** ${{ github.event.inputs.compiled_system }}
           - **KernelSU Variant:** ${{ github.event.inputs.kernelsu_variant }}
@@ -879,20 +861,20 @@ GUARDEOF
           - **Build Date:** ${{ env.RELEASE_DATE }}
           - **Commit ID:** ${{ env.GIT_COMMIT_ID }}
 
-          ### 🇨🇳 中文 | Chinese
-          - **目标机型:** ${{ env.TARGET_DEVICES }}
-          - **适用系统:** ${{ github.event.inputs.compiled_system }}
-          - **KernelSU变体:** ${{ github.event.inputs.kernelsu_variant }}
-          - **KPM支持:** ${{ github.event.inputs.kpm_enable }}
-          - **Droidspaces支持:** ${{ github.event.inputs.droidspaces_enable }}
-          - **构建类型:** ${{ github.event.inputs.build_type }}
-          - **构建日期:** ${{ env.RELEASE_DATE }}
-          - **提交ID:** ${{ env.GIT_COMMIT_ID }}
+          ###   | Chinese
+          - **:** ${{ env.TARGET_DEVICES }}
+          - **:** ${{ github.event.inputs.compiled_system }}
+          - **KernelSU:** ${{ github.event.inputs.kernelsu_variant }}
+          - **KPM:** ${{ github.event.inputs.kpm_enable }}
+          - **Droidspaces:** ${{ github.event.inputs.droidspaces_enable }}
+          - **:** ${{ github.event.inputs.build_type }}
+          - **:** ${{ env.RELEASE_DATE }}
+          - **ID:** ${{ env.GIT_COMMIT_ID }}
 
-          ### 📋 安装说明 | Installation Guide
-          1. 下载对应机型的刷机包
-          2. 进入Recovery模式
-          3. 通过Recovery刷入刷机包
-          4. 重启设备
+          ###   | Installation Guide
+          1. 
+          2. Recovery
+          3. Recovery
+          4. 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
