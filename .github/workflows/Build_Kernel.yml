@@ -290,10 +290,11 @@ jobs:
           fi
 
           # 4) SukiSU-Ultra 不使用旧版 #ifdef CONFIG_KSU 钩子 (它用 kprobe)
-          # 去掉 4 个内核源码文件中的 #ifdef CONFIG_KSU 守卫, 避免未定义符号
-          # 注意: 使用 sed 内联处理而非外部 Python 脚本（避免脚本缺失导致构建失败）
+          # 去掉 4 个内核源码文件中的 #ifdef CONFIG_KSU 守卫 (允许各种缩进)
           for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c; do
-            [ -f "$KERNEL_SOURCE/$f" ] && sed -i '/^#ifdef CONFIG_KSU$/,/^#endif$/{/^#ifdef CONFIG_KSU$/d;/^#endif$/d}' "$KERNEL_SOURCE/$f" && echo "Stripped KSU guards from $f"
+            [ -f "$KERNEL_SOURCE/$f" ] && \
+              sed -i '/^[[:space:]]*#ifdef[[:space:]]*CONFIG_KSU$/,/^[[:space:]]*#endif[[:space:]]*$/d' "$KERNEL_SOURCE/$f" && \
+              echo "Stripped KSU guards from $f"
           done
 
           echo "KSU config done"
@@ -478,8 +479,12 @@ jobs:
             -e LRU_GEN_ENABLED
           # 禁用模块签名 (KSU 需要加载未签名模块)
           scripts/config --file out/.config -d MODULE_SIG -d MODULE_SIG_FORCE -d MODULE_SIG_SHA512
-          # 禁用 USB PD 驱动 (ps5169 符号缺失)
+          # 禁用 USB PD 和 DP 驱动 (已退役标识符缺失)
           scripts/config --file out/.config -d QPNP_USB_PDPHY -d USB_PD_POLICY
+          # 禁用 techpack display 中引用缺失符号的驱动
+          for cfg in MSM_DISPLAY_DP MSM_DISPLAY_DSP; do
+            sed -i "s/CONFIG_${cfg}=y/CONFIG_${cfg}=n/" out/.config 2>/dev/null || true
+          done
 
           # 根据系统类型修改配置
           if [ "$SYSTEM" == "MIUI" ]; then
