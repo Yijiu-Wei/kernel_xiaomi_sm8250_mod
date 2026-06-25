@@ -40,12 +40,9 @@ mv $home/kernels/Image $home/Image;
 [ -f $home/kernels/dtb ] && mv $home/kernels/dtb $home/dtb;
 [ -f $home/kernels/dtbo ] && mv $home/kernels/dtbo $home/dtbo;
 
-# 刷入 boot 分区
-split_boot;
-flash_boot;
-
-# 如果有 dtbo 则刷入
-[ -f $home/dtbo ] && flash_dtbo;
+# 使用 write_boot 自动刷入 boot + vendor_boot + vendor_dlkm + dtbo
+# (Android 14 split boot 布局需要 vendor_boot 分区)
+write_boot;
 """
 
 path = sys.argv[1]
