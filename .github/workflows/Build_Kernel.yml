@@ -290,14 +290,27 @@ jobs:
           fi
 
           # 4) SukiSU-Ultra 不使用旧版 #ifdef CONFIG_KSU 钩子 (它用 kprobe)
-          # 去掉 5 个内核源码文件中的 #ifdef CONFIG_KSU 守卫 (允许尾随空格和缩进)
-          for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c input/input.c; do
-            FP="$KERNEL_SOURCE/$f"
-            if [ -f "$FP" ]; then
-              sed -i '/^[[:space:]]*#ifdef[[:space:]]*CONFIG_KSU[[:space:]]*$/,/^[[:space:]]*#endif[[:space:]]*$/d' "$FP"
-              echo "Stripped KSU guards from $f"
-            fi
-          done
+          python3 << 'GUARDEOF' - "$KERNEL_SOURCE"
+import os, sys
+srcdir = sys.argv[1]
+files = ['fs/exec.c', 'fs/read_write.c', 'fs/open.c', 'fs/stat.c', 'input/input.c']
+for fname in files:
+    path = os.path.join(srcdir, fname)
+    if not os.path.exists(path):
+        print('SKIP: ' + fname)
+        continue
+    with open(path, 'r') as f: lines = f.readlines()
+    result = []; skip = False
+    for line in lines:
+        s = line.strip().rstrip('\r')
+        if s == '#ifdef CONFIG_KSU':
+            skip = True; continue
+        if skip and s == '#endif':
+            skip = False; continue
+        if not skip: result.append(line)
+    with open(path, 'w') as f: f.writelines(result)
+    print('Stripped guards from ' + fname)
+GUARDEOF
 
           echo "KSU config done"
 
@@ -523,7 +536,6 @@ jobs:
               echo "🔧 Applying RKSU Configuration... (应用 RKSU 配置)"
               scripts/config --file out/.config \
                   -e KSU \
-                  -e KSU_MANUAL_HOOK \
                   -e KSU_SUSFS \
                   -e KSU_SUSFS_HAS_MAGIC_MOUNT \
                   -e KSU_SUSFS_SUS_PATH \
@@ -544,7 +556,6 @@ jobs:
               echo "🔧 Applying SukiSU-Ultra Configuration with SUSFS... (应用 SukiSU-Ultra SUSFS 配置)"
               scripts/config --file out/.config \
                   -e KSU \
-                  -e KSU_MANUAL_HOOK \
                   -e KSU_SUSFS \
                   -e KSU_SUSFS_HAS_MAGIC_MOUNT \
                   -e KSU_SUSFS_SUS_PATH \
