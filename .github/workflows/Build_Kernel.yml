@@ -114,9 +114,10 @@ jobs:
           echo "KernelSU变体: ${{ github.event.inputs.kernelsu_variant }} | KPM: ${{ github.event.inputs.kpm_enable }}"
           echo "Droidspaces: ${{ github.event.inputs.droidspaces_enable }} | 构建类型: ${{ github.event.inputs.build_type }}"
 
-      - name: 📥 Checkout workflow tools
+      - name: Checkout workflow tools
         uses: actions/checkout@v4
         with:
+          ref: android14-lineage22-mod
           path: build_tools
 
       - name: 🚀 Maximize build space (最大化构建空间)
