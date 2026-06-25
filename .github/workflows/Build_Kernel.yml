@@ -290,11 +290,13 @@ jobs:
           fi
 
           # 4) SukiSU-Ultra 不使用旧版 #ifdef CONFIG_KSU 钩子 (它用 kprobe)
-          # 去掉 4 个内核源码文件中的 #ifdef CONFIG_KSU 守卫 (允许各种缩进)
-          for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c; do
-            [ -f "$KERNEL_SOURCE/$f" ] && \
-              sed -i '/^[[:space:]]*#ifdef[[:space:]]*CONFIG_KSU[[:space:]]*$/,/^[[:space:]]*#endif[[:space:]]*$/d' "$KERNEL_SOURCE/$f" && \
+          # 去掉 5 个内核源码文件中的 #ifdef CONFIG_KSU 守卫 (允许尾随空格和缩进)
+          for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c input/input.c; do
+            FP="$KERNEL_SOURCE/$f"
+            if [ -f "$FP" ]; then
+              sed -i '/^[[:space:]]*#ifdef[[:space:]]*CONFIG_KSU[[:space:]]*$/,/^[[:space:]]*#endif[[:space:]]*$/d' "$FP"
               echo "Stripped KSU guards from $f"
+            fi
           done
 
           echo "KSU config done"
@@ -481,10 +483,8 @@ jobs:
           scripts/config --file out/.config -d MODULE_SIG -d MODULE_SIG_FORCE -d MODULE_SIG_SHA512
           # 禁用 USB PD 和 DP 驱动 (已退役标识符缺失)
           scripts/config --file out/.config -d QPNP_USB_PDPHY -d USB_PD_POLICY
-          # 禁用 techpack display 中引用缺失符号的驱动
-          for cfg in MSM_DISPLAY_DP MSM_DISPLAY_DSP; do
-            sed -i "s/CONFIG_${cfg}=y/CONFIG_${cfg}=n/" out/.config 2>/dev/null || true
-          done
+          # 禁用 techpack display DP (has_dp_flag/ps5169_cfg_usb 已退役)
+          scripts/config --file out/.config -d DRM_MSM_DP
 
           # 根据系统类型修改配置
           if [ "$SYSTEM" == "MIUI" ]; then
