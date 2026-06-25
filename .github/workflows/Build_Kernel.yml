@@ -489,6 +489,8 @@ jobs:
             -e LRU_GEN_ENABLED
           # 禁用模块签名 (KSU 需要加载未签名模块)
           scripts/config --file out/.config -d MODULE_SIG -d MODULE_SIG_FORCE -d MODULE_SIG_SHA512
+          # 禁用 EFI_STUB (输出 raw ELF, 兼容 magiskboot)
+          scripts/config --file out/.config -d EFI_STUB
           # 禁用 USB PD 和 DP 驱动 (已退役标识符缺失)
           scripts/config --file out/.config -d QPNP_USB_PDPHY -d USB_PD_POLICY
 
