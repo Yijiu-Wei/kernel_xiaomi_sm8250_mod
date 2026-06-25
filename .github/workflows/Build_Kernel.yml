@@ -293,7 +293,7 @@ jobs:
           # 去掉 4 个内核源码文件中的 #ifdef CONFIG_KSU 守卫 (允许各种缩进)
           for f in fs/exec.c fs/read_write.c fs/open.c fs/stat.c; do
             [ -f "$KERNEL_SOURCE/$f" ] && \
-              sed -i '/^[[:space:]]*#ifdef[[:space:]]*CONFIG_KSU$/,/^[[:space:]]*#endif[[:space:]]*$/d' "$KERNEL_SOURCE/$f" && \
+              sed -i '/^[[:space:]]*#ifdef[[:space:]]*CONFIG_KSU[[:space:]]*$/,/^[[:space:]]*#endif[[:space:]]*$/d' "$KERNEL_SOURCE/$f" && \
               echo "Stripped KSU guards from $f"
           done
 
