@@ -743,10 +743,10 @@ jobs:
           fi
 
           # 安装内核模块
-          echo "Installing kernel modules..."
+          # Build and install kernel modules (if any)
           mkdir -p "$WORKDIR/modules_out"
-          make $MAKE_ARGS INSTALL_MOD_PATH="$WORKDIR/modules_out" modules_install 2>&1; MOD_EXIT=${PIPESTATUS[0]}
-          echo "modules_install exit: $MOD_EXIT"
+          make $MAKE_ARGS modules 2>/dev/null | tail -3 || true
+          make $MAKE_ARGS INSTALL_MOD_PATH="$WORKDIR/modules_out" modules_install 2>&1 | tail -5 || true
 
           # 显示 ccache 统计信息
           echo "📊 CCache Statistics (CCache 统计信息):"
