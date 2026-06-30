@@ -13,9 +13,6 @@ device.name1=munch
 device.name2=munchin
 device.name3=RedmiK40S
 device.name4=POCOF4
-device.name5=alioth
-device.name6=apollo
-device.name7=lmi
 supported.versions=
 supported.patchlevels=
 '; }
