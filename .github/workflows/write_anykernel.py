@@ -38,8 +38,8 @@ mv $home/kernels/Image $home/Image;
 [ -f $home/kernels/dtb ] && mv $home/kernels/dtb $home/dtb;
 [ -f $home/kernels/dtbo ] && mv $home/kernels/dtbo $home/dtbo;
 
-# use write_boot to handle boot + vendor_boot + vendor_dlkm + dtbo
-write_boot;
+split_boot;
+flash_boot;
 """
 
 path = sys.argv[1]
