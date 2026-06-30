@@ -23,7 +23,6 @@ patch_vbmeta_flag=auto;
 
 . tools/ak3-core.sh;
 
-# ROM detection with fallback for dynamic partitions
 userflavor=$(file_getprop /system/build.prop "ro.build.flavor");
 if [ -z "$userflavor" ]; then
   userflavor=$(file_getprop /system/system/build.prop "ro.build.flavor");
@@ -39,9 +38,8 @@ mv $home/kernels/Image $home/Image;
 [ -f $home/kernels/dtb ] && mv $home/kernels/dtb $home/dtb;
 [ -f $home/kernels/dtbo ] && mv $home/kernels/dtbo $home/dtbo;
 
-split_boot;
-flash_boot;
-[ -f $home/dtbo ] && flash_dtbo;
+# use write_boot to handle boot + vendor_boot + vendor_dlkm + dtbo
+write_boot;
 """
 
 path = sys.argv[1]
