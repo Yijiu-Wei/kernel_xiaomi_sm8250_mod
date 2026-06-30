@@ -16,7 +16,7 @@ device.name4=POCOF4
 supported.versions=
 supported.patchlevels=
 '; }
-block=boot;
+block=/dev/block/bootdevice/by-name/boot;
 is_slot_device=auto;
 ramdisk_compression=auto;
 patch_vbmeta_flag=auto;
